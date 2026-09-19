@@ -18,6 +18,8 @@ const api: Api = {
   savePost: (input) => ipcRenderer.invoke('posts:save', input),
   renamePost: (id, newFileName) => ipcRenderer.invoke('posts:rename', id, newFileName),
   deletePost: (id) => ipcRenderer.invoke('posts:delete', id),
+  bulkUpdatePosts: (ids, patch) => ipcRenderer.invoke('posts:bulk-update', ids, patch),
+  checkLinks: () => ipcRenderer.invoke('posts:check-links'),
   getFrontmatterTemplate: (collection) => ipcRenderer.invoke('posts:template', collection),
 
   listImages: () => ipcRenderer.invoke('images:list'),

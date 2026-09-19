@@ -1,8 +1,11 @@
 import type {
+  BulkUpdatePatch,
+  BulkUpdateResult,
   DevServerState,
   FrontmatterTemplate,
   ImageItem,
   ImportImageResult,
+  LinkIssue,
   NewPostInput,
   PostDetail,
   PostMeta,
@@ -33,6 +36,10 @@ export interface Api {
   savePost(input: SavePostInput): Promise<void>
   renamePost(id: string, newFileName: string): Promise<{ id: string }>
   deletePost(id: string): Promise<void>
+  /** 批量更新文章（草稿状态/标签追加），返回逐篇结果，部分失败不回滚 */
+  bulkUpdatePosts(ids: string[], patch: BulkUpdatePatch): Promise<BulkUpdateResult[]>
+  /** 死链检查：站内链接与图片引用有效性 */
+  checkLinks(): Promise<LinkIssue[]>
   /** 依据集合现有文章推断新建文章的 frontmatter 模板 */
   getFrontmatterTemplate(collection: string): Promise<FrontmatterTemplate>
 

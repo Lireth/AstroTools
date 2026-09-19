@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { FrontmatterTemplate, NewPostInput, PostMeta } from '@shared/types'
+import type {
+  BulkUpdatePatch,
+  BulkUpdateResult,
+  FrontmatterTemplate,
+  NewPostInput,
+  PostMeta
+} from '@shared/types'
 
 export interface CreatePostDialogInput {
   collection: string
@@ -121,6 +127,28 @@ export const usePostsStore = defineStore('posts', () => {
     invalidate()
   }
 
+  /** 批量更新（草稿状态/标签追加），返回逐篇结果，由调用方汇总提示 */
+  async function bulkUpdate(ids: string[], patch: BulkUpdatePatch): Promise<BulkUpdateResult[]> {
+    const results = await window.api.bulkUpdatePosts(ids, patch)
+    invalidate()
+    return results
+  }
+
+  /** 批量删除：循环调用现有删除（走系统回收站），逐篇收集结果 */
+  async function bulkRemove(ids: string[]): Promise<BulkUpdateResult[]> {
+    const results: BulkUpdateResult[] = []
+    for (const id of ids) {
+      try {
+        await window.api.deletePost(id)
+        results.push({ id, ok: true })
+      } catch (err) {
+        results.push({ id, ok: false, error: (err as Error).message })
+      }
+    }
+    invalidate()
+    return results
+  }
+
   return {
     posts,
     loading,
@@ -136,6 +164,8 @@ export const usePostsStore = defineStore('posts', () => {
     invalidate,
     clearFilters,
     createFromDialog,
-    remove
+    remove,
+    bulkUpdate,
+    bulkRemove
   }
 })

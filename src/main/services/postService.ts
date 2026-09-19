@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync,
 import { basename, dirname, extname, join } from 'node:path'
 import matter from 'gray-matter'
 import type {
+  BulkUpdatePatch,
+  BulkUpdateResult,
   FrontmatterTemplate,
   NewPostInput,
   PostDetail,
@@ -262,6 +264,58 @@ export async function deletePost(
   const abs = resolveWithin(root, id)
   if (!existsSync(abs)) throw new Error(`文章不存在: ${id}`)
   await trash(abs)
+}
+
+/**
+ * 批量更新文章（草稿状态/标签追加）。逐篇独立处理：单篇失败不中断整体；
+ * 某篇探测不到对应键时跳过并注明原因，不擅自给不认识 schema 的文章加键。
+ */
+export function bulkUpdatePosts(
+  root: string,
+  ids: string[],
+  patch: BulkUpdatePatch
+): BulkUpdateResult[] {
+  return ids.map((id) => {
+    try {
+      const reason = applyBulkPatch(root, id, patch)
+      return reason ? { id, ok: false, error: reason } : { id, ok: true }
+    } catch (err) {
+      return { id, ok: false, error: (err as Error).message }
+    }
+  })
+}
+
+/** 对单篇文章应用 patch。成功返回 null，失败/跳过返回原因。 */
+function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): string | null {
+  const abs = resolveWithin(root, id)
+  if (!isMarkdownFile(abs)) return '仅支持 .md / .mdx 文章文件'
+  if (!existsSync(abs)) return '文件不存在（可能已被移动或删除）'
+  const parsed = parsePostFile(abs, root)
+  if (!parsed) return '文章解析失败'
+
+  const fm = { ...parsed.frontmatter }
+  let changed = false
+
+  if (patch.draft !== undefined) {
+    const draftKey = pickKey(fm, DRAFT_KEYS)
+    if (!draftKey) return '未识别草稿标记键（draft/published），已跳过'
+    fm[draftKey] = draftKey.toLowerCase() === 'published' ? !patch.draft : patch.draft
+    changed = true
+  }
+
+  if (patch.addTags && patch.addTags.length > 0) {
+    const tagsKey = pickKey(fm, TAGS_KEYS)
+    if (!tagsKey) return '未识别标签键（tags/keywords/categories），已跳过'
+    const before = normalizeTags(fm[tagsKey])
+    const merged = [...new Set([...before, ...patch.addTags])]
+    if (merged.some((t, i) => t !== before[i]) || merged.length !== before.length) {
+      fm[tagsKey] = merged
+      changed = true
+    }
+  }
+
+  if (changed) writeFileSync(abs, stringifyPost(fm, parsed.body), 'utf-8')
+  return null
 }
 
 /**

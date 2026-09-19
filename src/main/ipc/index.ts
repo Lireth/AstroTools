@@ -3,6 +3,7 @@ import { discoverCollections, readProjectInfo, validateAstroProject } from '../s
 import { DevServerManager } from '../services/devServer'
 import { importImage, listImages } from '../services/imageService'
 import {
+  bulkUpdatePosts,
   buildFrontmatterTemplate,
   createPost,
   deletePost,
@@ -11,6 +12,7 @@ import {
   savePost,
   scanPosts
 } from '../services/postService'
+import { checkLinks } from '../services/linkChecker'
 import { addRecentProject, loadSettings, removeRecentProject } from '../services/settings'
 import { getCurrentProject, getCurrentRoot, getMainWindow, setCurrentProject } from '../state'
 
@@ -104,6 +106,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('posts:delete', async (_e, id: string) => {
     await deletePost(requireRoot(), id, shell.trashItem)
   })
+
+  ipcMain.handle('posts:bulk-update', (_e, ids: string[], patch) =>
+    bulkUpdatePosts(requireRoot(), ids, patch)
+  )
+
+  ipcMain.handle('posts:check-links', () => checkLinks(requireRoot(), discoverCollections(requireRoot())))
 
   ipcMain.handle('posts:template', (_e, collection: string) => {
     const root = requireRoot()

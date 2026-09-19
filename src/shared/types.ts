@@ -130,3 +130,29 @@ export interface ImportImageResult {
   /** 建议的 markdown 引用，如 ![foo](/images/foo.png) */
   markdownRef: string
 }
+
+/** 批量更新入参：undefined 的字段不修改 */
+export interface BulkUpdatePatch {
+  /** 目标草稿状态（服务端按每篇实际的 draft/published 键写入） */
+  draft?: boolean
+  /** 追加合并去重的标签 */
+  addTags?: string[]
+}
+
+/** 批量操作逐篇结果 */
+export interface BulkUpdateResult {
+  id: string
+  ok: boolean
+  /** 失败/跳过原因 */
+  error?: string
+}
+
+/** 死链检查问题条目 */
+export interface LinkIssue {
+  postId: string
+  postTitle: string
+  type: 'link' | 'image'
+  /** 引用目标（已去除 #anchor 与 ?query） */
+  target: string
+  reason: string
+}

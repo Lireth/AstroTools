@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { EditorState } from '@codemirror/state'
+import { EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
+import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { languages } from '@codemirror/language-data'
 
-const props = defineProps<{ modelValue: string; readOnly?: boolean }>()
+const props = defineProps<{ modelValue: string; readOnly?: boolean; language?: 'markdown' | 'yaml' }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'save'): void }>()
 
 const container = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 // 外部同步（加载文章）时的 dispatch 不应触发 dirty 标记
 let syncing = false
+
+function languageExtension(): Extension {
+  return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
+}
 
 onMounted(() => {
   if (!container.value) return
@@ -22,7 +27,7 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         basicSetup,
-        markdown({ codeLanguages: languages }),
+        languageExtension(),
         EditorView.lineWrapping,
         EditorState.readOnly.of(props.readOnly ?? false),
         keymap.of([

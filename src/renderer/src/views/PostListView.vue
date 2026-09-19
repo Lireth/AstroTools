@@ -2,7 +2,8 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Connection, Delete, EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import type { BulkUpdateResult, LinkIssue } from '@shared/types'
 import { usePostsStore } from '../stores/posts'
 import { useProjectStore } from '../stores/project'
 
@@ -28,6 +29,129 @@ const collectionNames = computed(() => project.info?.collections.map((c) => c.na
 const hasFilters = computed(
   () => posts.query || posts.tag || posts.draftOnly || posts.collection
 )
+
+// ---- 批量选择 ----
+const selected = ref<string[]>([])
+const selectedSet = computed(() => new Set(selected.value))
+
+function toggleSelect(id: string): void {
+  selected.value = selected.value.includes(id)
+    ? selected.value.filter((x) => x !== id)
+    : [...selected.value, id]
+}
+
+const allSelected = computed({
+  get: () => posts.filtered.length > 0 && posts.filtered.every((p) => selectedSet.value.has(p.id)),
+  set: (v: boolean) => {
+    selected.value = v ? posts.filtered.map((p) => p.id) : []
+  }
+})
+const someSelected = computed(() => selected.value.length > 0 && !allSelected.value)
+
+function summarize(results: BulkUpdateResult[], successText: string): void {
+  const fails = results.filter((r) => !r.ok)
+  if (!fails.length) {
+    ElMessage.success(`${successText}（${results.length} 篇）`)
+    return
+  }
+  const detail = fails
+    .slice(0, 3)
+    .map((f) => `${f.id.split('/').pop() ?? f.id}：${f.error ?? '失败'}`)
+    .join('；')
+  ElMessage.warning(
+    `成功 ${results.length - fails.length} 篇，失败 ${fails.length} 篇：${detail}${fails.length > 3 ? '…' : ''}`
+  )
+}
+
+async function bulkSetDraft(draft: boolean): Promise<void> {
+  const ids = [...selected.value]
+  try {
+    const results = await posts.bulkUpdate(ids, { draft })
+    summarize(results, draft ? '已转为草稿' : '已发布')
+    await posts.reload()
+    selected.value = []
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
+
+const bulkTagVisible = ref(false)
+const bulkTags = ref<string[]>([])
+
+function openBulkTags(): void {
+  bulkTags.value = []
+  bulkTagVisible.value = true
+}
+
+async function submitBulkTags(): Promise<void> {
+  if (!bulkTags.value.length) {
+    ElMessage.warning('请选择或输入至少一个标签')
+    return
+  }
+  const ids = [...selected.value]
+  bulkTagVisible.value = false
+  try {
+    const results = await posts.bulkUpdate(ids, { addTags: [...bulkTags.value] })
+    summarize(results, '标签已更新')
+    await posts.reload()
+    selected.value = []
+    bulkTags.value = []
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
+
+async function bulkDelete(): Promise<void> {
+  const ids = [...selected.value]
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${ids.length} 篇文章吗？文件将移动到系统回收站，可在回收站中恢复。`,
+      '批量删除',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const results = await posts.bulkRemove(ids)
+    summarize(results, '已移入回收站')
+    await posts.reload()
+    selected.value = []
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
+
+// ---- 死链检查 ----
+const checking = ref(false)
+const linkDrawer = ref(false)
+const linkIssues = ref<LinkIssue[]>([])
+
+async function runLinkCheck(): Promise<void> {
+  checking.value = true
+  linkDrawer.value = true
+  try {
+    linkIssues.value = await window.api.checkLinks()
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+    linkDrawer.value = false
+  } finally {
+    checking.value = false
+  }
+}
+
+const groupedIssues = computed(() => {
+  const map = new Map<string, { postId: string; postTitle: string; items: LinkIssue[] }>()
+  for (const it of linkIssues.value) {
+    let g = map.get(it.postId)
+    if (!g) {
+      g = { postId: it.postId, postTitle: it.postTitle, items: [] }
+      map.set(it.postId, g)
+    }
+    g.items.push(it)
+  }
+  return [...map.values()]
+})
 
 function formatDate(iso?: string): string {
   if (!iso) return '—'
@@ -133,8 +257,17 @@ onMounted(() => {
         clearable
       />
       <el-checkbox v-model="posts.draftOnly" label="仅看草稿" />
+      <el-checkbox
+        v-model="allSelected"
+        :indeterminate="someSelected"
+        :disabled="!posts.filtered.length"
+        >全选</el-checkbox
+      >
       <div class="toolbar-spacer"></div>
       <span class="count-hint">共 {{ posts.filtered.length }} 篇</span>
+      <el-tooltip content="检查站内链接与图片引用" placement="top">
+        <el-button :icon="Connection" :loading="checking" @click="runLinkCheck">检查死链</el-button>
+      </el-tooltip>
       <el-tooltip content="重新扫描文章" placement="top">
         <el-button :icon="Refresh" circle @click="posts.reload()" />
       </el-tooltip>
@@ -163,6 +296,9 @@ onMounted(() => {
         class="post-item panel"
         @click="openEditor(p.id)"
       >
+        <div class="post-check" @click.stop>
+          <el-checkbox :model-value="selectedSet.has(p.id)" @change="toggleSelect(p.id)" />
+        </div>
         <div class="post-main">
           <div class="post-title-row">
             <span class="post-title">{{ p.title }}</span>
@@ -188,6 +324,60 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <transition name="bulk-fade">
+      <div v-if="selected.length" class="bulk-bar panel">
+        <span class="bulk-count">已选 {{ selected.length }} 篇</span>
+        <el-button size="small" @click="bulkSetDraft(false)">发布</el-button>
+        <el-button size="small" @click="bulkSetDraft(true)">转草稿</el-button>
+        <el-button size="small" @click="openBulkTags">加标签</el-button>
+        <el-button size="small" type="danger" plain :icon="Delete" @click="bulkDelete">删除</el-button>
+        <el-button size="small" text @click="selected = []">取消</el-button>
+      </div>
+    </transition>
+
+    <el-dialog v-model="bulkTagVisible" title="批量添加标签" width="420px">
+      <el-select
+        v-model="bulkTags"
+        multiple
+        filterable
+        allow-create
+        default-first-option
+        placeholder="输入后回车创建标签（将追加合并到所选文章）"
+        style="width: 100%"
+      >
+        <el-option v-for="t in posts.tagCounts.slice(0, 30)" :key="t.name" :label="t.name" :value="t.name" />
+      </el-select>
+      <template #footer>
+        <el-button @click="bulkTagVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitBulkTags">应用到 {{ selected.length }} 篇</el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer v-model="linkDrawer" title="死链检查" size="480px">
+      <div v-if="checking" class="issue-hint">正在检查站内链接与图片引用…</div>
+      <template v-else>
+        <el-empty v-if="!linkIssues.length" description="未发现问题，全部引用有效" />
+        <template v-else>
+          <div class="issue-summary">
+            共 {{ linkIssues.length }} 处问题，涉及 {{ groupedIssues.length }} 篇文章；点击文章标题跳转编辑
+          </div>
+          <div v-for="g in groupedIssues" :key="g.postId" class="issue-group panel">
+            <div class="issue-post" @click="openEditor(g.postId)">
+              {{ g.postTitle }}
+              <span class="issue-count">{{ g.items.length }}</span>
+            </div>
+            <div v-for="(it, i) in g.items" :key="i" class="issue-item">
+              <el-tag size="small" :type="it.type === 'image' ? 'warning' : 'danger'" effect="light">
+                {{ it.type === 'image' ? '图片' : '链接' }}
+              </el-tag>
+              <span class="issue-target" :title="it.target">{{ it.target }}</span>
+              <span class="issue-reason">{{ it.reason }}</span>
+            </div>
+          </div>
+        </template>
+      </template>
+    </el-drawer>
 
     <el-dialog v-model="createVisible" title="新建文章" width="520px">
       <el-form label-width="80px" label-position="left">
@@ -286,6 +476,7 @@ onMounted(() => {
 }
 
 .post-main {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -348,5 +539,96 @@ onMounted(() => {
 }
 .post-item:hover .post-actions {
   opacity: 1;
+}
+
+.post-check {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 3px;
+}
+
+.bulk-bar {
+  position: fixed;
+  bottom: 24px;
+  left: calc(50% + 132px);
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+}
+.bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.bulk-fade-enter-active,
+.bulk-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.bulk-fade-enter-from,
+.bulk-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+.issue-hint {
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.issue-summary {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  margin-bottom: 12px;
+}
+.issue-group {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.issue-post {
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.issue-post:hover {
+  color: var(--el-color-primary);
+}
+.issue-count {
+  font-size: 11px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.issue-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.issue-target {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.issue-reason {
+  color: #b91c1c;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
 }
 </style>

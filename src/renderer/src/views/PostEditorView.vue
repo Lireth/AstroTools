@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, CircleCheck, Loading, Plus, View } from '@element-plus/icons-vue'
 import CodeEditor from '../components/CodeEditor.vue'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
@@ -17,6 +17,27 @@ const metaOpen = ref<string[]>(['meta'])
 const previewVisible = ref(true)
 
 const postId = computed(() => decodeURIComponent(String(route.params.id ?? '')))
+
+// YAML 源码模式开关：切回表单时未同步的 YAML 修改先尝试解析应用，失败则确认放弃
+const yamlOn = computed({
+  get: () => editor.yamlMode,
+  set: (v: boolean) => {
+    if (v) {
+      editor.enterYamlMode()
+      return
+    }
+    if (!editor.yamlDirty || editor.exitYamlMode()) return
+    void ElMessageBox.confirm(
+      'YAML 内容解析失败，放弃这些修改并返回表单模式？',
+      '提示',
+      { type: 'warning', confirmButtonText: '放弃修改', cancelButtonText: '留在 YAML 模式' }
+    )
+      .then(() => editor.discardYaml())
+      .catch(() => {
+        /* 保持 YAML 模式 */
+      })
+  }
+})
 
 async function doSave(): Promise<void> {
   try {
@@ -84,6 +105,8 @@ onBeforeUnmount(() => {
         v-model="editor.title"
         class="title-input"
         placeholder="文章标题"
+        :disabled="editor.yamlMode"
+        :title="editor.yamlMode ? 'YAML 模式下请在源码中编辑标题' : undefined"
         @input="editor.markTouched('title')"
       />
       <span class="word-count">{{ editor.wordCount }} 字</span>
@@ -104,9 +127,31 @@ onBeforeUnmount(() => {
         <template #title>
           <span class="meta-title">文章元数据（frontmatter）</span>
           <span v-if="editor.detail" class="meta-file">{{ editor.detail.collection }} / {{ editor.fileName }}</span>
+          <span class="yaml-switch-wrap" title="以 YAML 源码方式编辑 frontmatter" @click.stop>
+            <el-switch
+              v-model="yamlOn"
+              size="small"
+              inline-prompt
+              active-text="YAML"
+              inactive-text="表单"
+            />
+          </span>
         </template>
 
-        <div v-loading="editor.loading" class="meta-grid">
+        <div v-loading="editor.loading" class="meta-body">
+          <el-alert
+            v-if="editor.yamlError"
+            class="yaml-alert"
+            type="error"
+            show-icon
+            :closable="false"
+            title="YAML 解析失败，请修正后重试"
+            :description="editor.yamlError ?? ''"
+          />
+          <div v-if="editor.yamlMode" class="yaml-editor-wrap">
+            <CodeEditor v-model="editor.yamlText" language="yaml" />
+          </div>
+          <div v-show="!editor.yamlMode" class="meta-grid">
           <div class="meta-item">
             <label>发布日期</label>
             <el-date-picker
@@ -173,6 +218,7 @@ onBeforeUnmount(() => {
               </div>
               <el-button size="small" :icon="Plus" @click="addExtra">添加字段</el-button>
             </div>
+          </div>
           </div>
         </div>
       </el-collapse-item>
@@ -259,6 +305,27 @@ onBeforeUnmount(() => {
   margin-left: 12px;
   font-size: 12px;
   color: var(--text-sub);
+}
+.yaml-switch-wrap {
+  margin-left: auto;
+  margin-right: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+.meta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.yaml-alert {
+  border-radius: 8px;
+}
+.yaml-editor-wrap {
+  height: 260px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
 }
 
 .meta-grid {

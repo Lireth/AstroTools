@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Document, Picture, Promotion, Refresh, Right, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import CommandPalette from './CommandPalette.vue'
 import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
 import { useDevServerStore } from '../stores/devServer'
@@ -12,6 +13,15 @@ const router = useRouter()
 const project = useProjectStore()
 const posts = usePostsStore()
 const dev = useDevServerStore()
+
+const paletteOpen = ref(false)
+
+function onGlobalKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+    paletteOpen.value = true
+  }
+}
 
 const collections = computed(() => project.info?.collections ?? [])
 const collectionModel = computed({
@@ -36,6 +46,7 @@ const devStatusText = computed(
 
 const navItems = [
   { path: '/posts', label: '文章管理', icon: Document },
+  { path: '/dashboard', label: '统计', icon: DataAnalysis },
   { path: '/images', label: '图片资源', icon: Picture },
   { path: '/preview', label: '站点预览', icon: Promotion }
 ]
@@ -89,8 +100,13 @@ watch(
 )
 
 onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
   dev.init()
   if (project.info) void posts.load(true)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 
@@ -152,6 +168,11 @@ onMounted(() => {
       </div>
 
       <nav class="nav">
+        <button class="nav-item" type="button" @click="paletteOpen = true">
+          <el-icon><Search /></el-icon>
+          快速打开
+          <span class="nav-shortcut">Ctrl+P</span>
+        </button>
         <button
           v-for="item in navItems"
           :key="item.path"
@@ -200,6 +221,8 @@ onMounted(() => {
         <router-view />
       </main>
     </div>
+
+    <CommandPalette v-model="paletteOpen" />
   </div>
 </template>
 
@@ -377,6 +400,15 @@ onMounted(() => {
   height: 1px;
   background: var(--border-soft);
   margin: 6px 0;
+}
+.nav-shortcut {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-sub);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: #fff;
 }
 
 .content {

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
 import type { FrontmatterTemplate, PostDetail } from '@shared/types'
 import { usePostsStore } from './posts'
 
@@ -48,6 +49,13 @@ export const useEditorStore = defineStore('editor', () => {
   const fileName = ref('')
   const extras = ref<ExtraField[]>([])
 
+  // YAML 源码模式：开启时 YAML 文本为唯一事实源，保存/切回表单时解析回写
+  const yamlMode = ref(false)
+  const yamlText = ref('')
+  const yamlError = ref<string | null>(null)
+  // 上次同步基准文本，用于判断切回表单时是否有未应用的修改
+  let yamlBase = ''
+
   // frontmatter 键名映射（随主题而异，打开时按实际文件/模板推断）
   let titleKey = 'title'
   let dateKey = 'pubDate'
@@ -87,31 +95,53 @@ export const useEditorStore = defineStore('editor', () => {
   async function open(id: string): Promise<void> {
     loading.value = true
     dirty.value = false
+    yamlMode.value = false
+    yamlError.value = null
     try {
       detail.value = await window.api.readPost(id)
       const fm = detail.value.frontmatter
       const template = await window.api.getFrontmatterTemplate(detail.value.collection)
       deriveKeys(fm, template)
-      originalFm = fm
+      applyFmToForm(fm)
 
       body.value = detail.value.body
       fileName.value = detail.value.fileName
-      title.value = typeof fm[titleKey] === 'string' ? (fm[titleKey] as string) : detail.value.title
-      dateStr.value = detail.value.date ? detail.value.date.slice(0, 10) : ''
-      tags.value = [...detail.value.tags]
-      description.value =
-        typeof fm[descriptionKey] === 'string' ? (fm[descriptionKey] as string) : ''
-      draft.value = detail.value.draft
-
-      const known = new Set(
-        [titleKey, dateKey, tagsKey, descriptionKey, draftKey].map((k) => k.toLowerCase())
-      )
-      extras.value = Object.entries(fm)
-        .filter(([k]) => !known.has(k.toLowerCase()))
-        .map(([k, v]) => ({ key: k, value: extraValueText(v) }))
     } finally {
       loading.value = false
     }
+  }
+
+  /** 把 frontmatter 对象映射到表单字段（打开文章与 YAML 模式切回共用） */
+  function applyFmToForm(fm: Record<string, unknown>): void {
+    originalFm = fm
+    title.value = typeof fm[titleKey] === 'string' ? (fm[titleKey] as string) : detail.value?.title ?? ''
+    const dateVal = dateKey ? fm[dateKey] : undefined
+    const dateIso =
+      dateVal instanceof Date && !Number.isNaN(dateVal.getTime())
+        ? dateVal.toISOString()
+        : typeof dateVal === 'string' && !Number.isNaN(new Date(dateVal).getTime())
+          ? new Date(dateVal).toISOString()
+          : undefined
+    dateStr.value = dateIso ? dateIso.slice(0, 10) : ''
+    const rawTags = tagsKey ? fm[tagsKey] : undefined
+    tags.value = Array.isArray(rawTags)
+      ? rawTags.map((t) => String(t).trim()).filter(Boolean)
+      : typeof rawTags === 'string'
+        ? rawTags.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+        : []
+    description.value =
+      typeof fm[descriptionKey] === 'string' ? (fm[descriptionKey] as string) : ''
+    draft.value =
+      draftKey.toLowerCase() === 'published' ? fm[draftKey] === false : fm[draftKey] === true
+
+    const known = new Set(
+      [titleKey, dateKey, tagsKey, descriptionKey, draftKey].map((k) => k.toLowerCase())
+    )
+    extras.value = Object.entries(fm)
+      .filter(([k]) => !known.has(k.toLowerCase()))
+      .map(([k, v]) => ({ key: k, value: extraValueText(v) }))
+
+    for (const k of Object.keys(touched) as (keyof typeof touched)[]) touched[k] = false
   }
 
   function markDirty(): void {
@@ -123,41 +153,97 @@ export const useEditorStore = defineStore('editor', () => {
     dirty.value = true
   }
 
+  const yamlDirty = computed(() => yamlMode.value && yamlText.value !== yamlBase)
+
+  function enterYamlMode(): void {
+    if (!detail.value) return
+    yamlText.value = yamlDump(detail.value.frontmatter ?? {}, { lineWidth: 0, noRefs: true })
+    yamlBase = yamlText.value
+    yamlError.value = null
+    yamlMode.value = true
+  }
+
+  /** 解析当前 YAML 文本；失败时设置 yamlError 并返回 null */
+  function parseYamlText(): Record<string, unknown> | null {
+    try {
+      const parsed: unknown = yamlLoad(yamlText.value)
+      if (parsed === null || parsed === undefined) {
+        yamlError.value = null
+        return {}
+      }
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        yamlError.value = 'frontmatter 必须是键值映射，当前解析结果是数组或标量'
+        return null
+      }
+      yamlError.value = null
+      return parsed as Record<string, unknown>
+    } catch (err) {
+      yamlError.value = (err as Error).message
+      return null
+    }
+  }
+
+  /** 切回表单模式：解析成功并同步表单返回 true；失败保持 YAML 模式，由调用方决定是否放弃 */
+  function exitYamlMode(): boolean {
+    const fm = parseYamlText()
+    if (fm === null) return false
+    applyFmToForm(fm)
+    yamlMode.value = false
+    return true
+  }
+
+  /** 放弃 YAML 修改，直接退回表单模式 */
+  function discardYaml(): void {
+    yamlMode.value = false
+    yamlError.value = null
+  }
+
   async function save(): Promise<void> {
     if (!detail.value || saving.value) return
     saving.value = true
     try {
-      const fm: Record<string, unknown> = { ...originalFm }
-      const write = (key: string, value: unknown, isTouched: boolean): void => {
-        if (Object.keys(originalFm).some((k) => k.toLowerCase() === key.toLowerCase()) || isTouched) {
-          fm[key] = value
+      let fm: Record<string, unknown>
+      if (yamlMode.value) {
+        const parsed = parseYamlText()
+        if (parsed === null) return // 解析失败：yamlError 已设置，中止保存
+        fm = parsed
+      } else {
+        fm = { ...originalFm }
+        const write = (key: string, value: unknown, isTouched: boolean): void => {
+          if (Object.keys(originalFm).some((k) => k.toLowerCase() === key.toLowerCase()) || isTouched) {
+            fm[key] = value
+          }
         }
-      }
 
-      write(titleKey, title.value.trim(), touched.title)
-      if (dateStr.value) write(dateKey, dateStr.value, touched.date)
-      // 展开为数组浅拷贝：ref 内的数组是响应式 Proxy，无法结构化克隆过 IPC
-      write(tagsKey, [...tags.value], touched.tags)
-      write(descriptionKey, description.value, touched.description)
-      write(
-        draftKey,
-        draftKey.toLowerCase() === 'published' ? !draft.value : draft.value,
-        touched.draft
-      )
+        write(titleKey, title.value.trim(), touched.title)
+        if (dateStr.value) write(dateKey, dateStr.value, touched.date)
+        // 展开为数组浅拷贝：ref 内的数组是响应式 Proxy，无法结构化克隆过 IPC
+        write(tagsKey, [...tags.value], touched.tags)
+        write(descriptionKey, description.value, touched.description)
+        write(
+          draftKey,
+          draftKey.toLowerCase() === 'published' ? !draft.value : draft.value,
+          touched.draft
+        )
 
-      // 其他字段整体按面板内容重建（键名大小写以面板为准）
-      for (const [k] of Object.entries(fm)) {
-        if (!extras.value.some((f) => f.key === k)) {
-          const known = [titleKey, dateKey, tagsKey, descriptionKey, draftKey]
-          if (!known.includes(k)) delete fm[k]
+        // 其他字段整体按面板内容重建（键名大小写以面板为准）
+        for (const [k] of Object.entries(fm)) {
+          if (!extras.value.some((f) => f.key === k)) {
+            const known = [titleKey, dateKey, tagsKey, descriptionKey, draftKey]
+            if (!known.includes(k)) delete fm[k]
+          }
         }
-      }
-      for (const f of extras.value) {
-        const k = f.key.trim()
-        if (k) fm[k] = parseExtraValue(f.value)
+        for (const f of extras.value) {
+          const k = f.key.trim()
+          if (k) fm[k] = parseExtraValue(f.value)
+        }
       }
 
       await window.api.savePost({ id: detail.value.id, frontmatter: fm, body: body.value })
+      if (yamlMode.value) {
+        applyFmToForm(fm)
+        yamlBase = yamlText.value
+      }
       dirty.value = false
       usePostsStore().invalidate()
     } finally {
@@ -188,10 +274,17 @@ export const useEditorStore = defineStore('editor', () => {
     fileName,
     extras,
     wordCount,
+    yamlMode,
+    yamlText,
+    yamlError,
+    yamlDirty,
     open,
     markDirty,
     markTouched,
     save,
-    rename
+    rename,
+    enterYamlMode,
+    exitYamlMode,
+    discardYaml
   }
 })
