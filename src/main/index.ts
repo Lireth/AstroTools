@@ -1,0 +1,111 @@
+import { app, BrowserWindow, net, protocol } from 'electron'
+import { existsSync, statSync } from 'node:fs'
+import { extname, join, resolve, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { disposeIpc, registerIpcHandlers } from './ipc'
+import { getCurrentRoot, setMainWindow } from './state'
+
+const MEDIA_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon',
+  '.bmp': 'image/bmp'
+}
+
+// media:// 协议需在 app ready 前注册特权，供渲染进程以 <img> 加载本地图片
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
+
+function createWindow(): void {
+  const win = new BrowserWindow({
+    width: 1320,
+    height: 860,
+    minWidth: 1024,
+    minHeight: 680,
+    show: false,
+    autoHideMenuBar: true,
+    title: 'AstroBlog Manager',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      webviewTag: true
+    }
+  })
+
+  win.on('ready-to-show', () => win.show())
+  win.on('closed', () => setMainWindow(null))
+  setMainWindow(win)
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+function registerMediaProtocol(): void {
+  protocol.handle('media', async (request) => {
+    try {
+      const url = new URL(request.url)
+      if (url.hostname !== 'local') return new Response('bad request', { status: 400 })
+      const root = getCurrentRoot()
+      if (!root) return new Response('no project open', { status: 404 })
+
+      const publicRoot = resolve(root, 'public')
+      const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      const abs = resolve(publicRoot, rel)
+      if (abs !== publicRoot && !abs.startsWith(publicRoot + sep)) {
+        return new Response('forbidden', { status: 403 })
+      }
+      if (!existsSync(abs) || !statSync(abs).isFile()) {
+        return new Response('not found', { status: 404 })
+      }
+
+      const res = await net.fetch(pathToFileURL(abs).toString())
+      const headers = new Headers(res.headers)
+      headers.set('Content-Type', MEDIA_MIME[extname(abs).toLowerCase()] ?? 'application/octet-stream')
+      return new Response(res.body, { status: res.status, headers })
+    } catch (err) {
+      return new Response(String(err), { status: 500 })
+    }
+  })
+}
+
+let quitting = false
+
+app.setName('astroblog-manager')
+
+// E2E 测试钩子：设置 ASTROTOOLS_E2E=<端口> 时开启 CDP 远程调试（仅测试用）
+if (process.env['ASTROTOOLS_E2E']) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env['ASTROTOOLS_E2E'])
+}
+
+app.whenReady().then(() => {
+  registerIpcHandlers()
+  registerMediaProtocol()
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+
+// 退出前确保 dev server 子进程被结束
+app.on('before-quit', (e) => {
+  if (quitting) return
+  quitting = true
+  e.preventDefault()
+  void disposeIpc().finally(() => app.quit())
+})

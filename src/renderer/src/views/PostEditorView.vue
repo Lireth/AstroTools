@@ -1,0 +1,363 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { ArrowLeft, CircleCheck, Loading, Plus, View } from '@element-plus/icons-vue'
+import CodeEditor from '../components/CodeEditor.vue'
+import MarkdownPreview from '../components/MarkdownPreview.vue'
+import { useEditorStore } from '../stores/editor'
+import { usePostsStore } from '../stores/posts'
+
+const route = useRoute()
+const router = useRouter()
+const editor = useEditorStore()
+const posts = usePostsStore()
+
+const metaOpen = ref<string[]>(['meta'])
+const previewVisible = ref(true)
+
+const postId = computed(() => decodeURIComponent(String(route.params.id ?? '')))
+
+async function doSave(): Promise<void> {
+  try {
+    await editor.save()
+    ElMessage.success('已保存')
+  } catch (err) {
+    ElMessage.error(`保存失败: ${(err as Error).message}`)
+  }
+}
+
+function onWindowKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    void doSave()
+  }
+}
+
+async function doRename(): Promise<void> {
+  try {
+    await editor.rename()
+    ElMessage.success('文件已重命名')
+    await posts.reload()
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
+
+function addExtra(): void {
+  editor.extras.push({ key: '', value: '' })
+  editor.markDirty()
+}
+
+function removeExtra(index: number): void {
+  editor.extras.splice(index, 1)
+  editor.markDirty()
+}
+
+function goBack(): void {
+  void router.push('/posts')
+}
+
+watch(
+  postId,
+  (id) => {
+    if (id) void editor.open(id)
+  },
+  { immediate: true }
+)
+
+onMounted(() => {
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
+})
+</script>
+
+<template>
+  <div class="editor-page">
+    <div class="editor-topbar">
+      <el-button :icon="ArrowLeft" circle @click="goBack" />
+      <span v-if="editor.dirty" class="dirty-dot" title="有未保存的修改"></span>
+      <input
+        v-model="editor.title"
+        class="title-input"
+        placeholder="文章标题"
+        @input="editor.markTouched('title')"
+      />
+      <span class="word-count">{{ editor.wordCount }} 字</span>
+      <el-tooltip content="切换右侧预览" placement="top">
+        <el-button :icon="View" circle :class="{ active: previewVisible }" @click="previewVisible = !previewVisible" />
+      </el-tooltip>
+      <el-button
+        type="primary"
+        :icon="editor.saving ? Loading : CircleCheck"
+        :loading="editor.saving"
+        @click="doSave"
+        >保存</el-button
+      >
+    </div>
+
+    <el-collapse v-model="metaOpen" class="meta-collapse">
+      <el-collapse-item name="meta">
+        <template #title>
+          <span class="meta-title">文章元数据（frontmatter）</span>
+          <span v-if="editor.detail" class="meta-file">{{ editor.detail.collection }} / {{ editor.fileName }}</span>
+        </template>
+
+        <div v-loading="editor.loading" class="meta-grid">
+          <div class="meta-item">
+            <label>发布日期</label>
+            <el-date-picker
+              v-model="editor.dateStr"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="选择日期"
+              style="width: 100%"
+              @change="editor.markTouched('date')"
+            />
+          </div>
+          <div class="meta-item">
+            <label>标签</label>
+            <el-select
+              v-model="editor.tags"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              placeholder="输入后回车创建"
+              style="width: 100%"
+              @change="editor.markTouched('tags')"
+            >
+              <el-option v-for="t in posts.tagCounts.slice(0, 30)" :key="t.name" :label="t.name" :value="t.name" />
+            </el-select>
+          </div>
+          <div class="meta-item draft-item">
+            <label>草稿</label>
+            <el-switch v-model="editor.draft" @change="editor.markTouched('draft')" />
+          </div>
+          <div class="meta-item span-2">
+            <label>描述</label>
+            <el-input
+              v-model="editor.description"
+              type="textarea"
+              :rows="2"
+              placeholder="文章摘要（可选）"
+              @input="editor.markTouched('description')"
+            />
+          </div>
+          <div class="meta-item span-2 rename-row">
+            <label>文件名</label>
+            <div class="rename-control">
+              <el-input v-model="editor.fileName" placeholder="文件名" />
+              <el-button size="default" @click="doRename">重命名</el-button>
+            </div>
+          </div>
+
+          <div class="meta-item span-2">
+            <label>其他字段</label>
+            <div class="extras">
+              <div v-for="(f, i) in editor.extras" :key="i" class="extra-row">
+                <el-input v-model="f.key" class="extra-key" placeholder="字段名" @input="editor.markDirty()" />
+                <el-input
+                  v-model="f.value"
+                  type="textarea"
+                  :rows="1"
+                  :autosize="{ minRows: 1, maxRows: 6 }"
+                  class="extra-value"
+                  placeholder="值（对象/数组用 JSON 表示）"
+                  @input="editor.markDirty()"
+                />
+                <el-button size="default" text type="danger" @click="removeExtra(i)">移除</el-button>
+              </div>
+              <el-button size="small" :icon="Plus" @click="addExtra">添加字段</el-button>
+            </div>
+          </div>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
+
+    <div class="editor-body" :class="{ 'no-preview': !previewVisible }">
+      <div class="editor-pane">
+        <CodeEditor
+          v-model="editor.body"
+          @update:model-value="editor.markDirty()"
+          @save="doSave"
+        />
+      </div>
+      <div v-if="previewVisible" class="preview-pane">
+        <div class="preview-label">实时预览</div>
+        <div class="preview-scroll">
+          <MarkdownPreview :source="editor.body" />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.editor-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.dirty-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+}
+.title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main);
+  padding: 4px 2px;
+}
+.title-input::placeholder {
+  color: #b3b8c6;
+}
+.word-count {
+  font-size: 12px;
+  color: var(--text-sub);
+  flex-shrink: 0;
+}
+
+.meta-collapse {
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  --el-collapse-border-color: var(--border-soft);
+}
+.meta-collapse :deep(.el-collapse-item__header) {
+  padding: 0 14px;
+  background: #fbfbfe;
+  border-radius: 10px 10px 0 0;
+}
+.meta-collapse :deep(.el-collapse-item__wrap) {
+  border-radius: 0 0 10px 10px;
+}
+.meta-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.meta-file {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  padding: 4px 14px 14px;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.meta-item label {
+  font-size: 12px;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+.meta-item.span-2 {
+  grid-column: span 2;
+}
+.draft-item {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.rename-control {
+  display: flex;
+  gap: 8px;
+}
+
+.extras {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.extra-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: flex-start;
+}
+.extra-key {
+  width: 180px;
+  flex-shrink: 0;
+}
+.extra-value {
+  flex: 1;
+}
+
+.editor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+.editor-pane {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.editor-body.no-preview .editor-pane {
+  flex: 1;
+}
+
+.preview-pane {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.preview-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: #fbfbfe;
+}
+.preview-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 24px;
+}
+
+@media (max-width: 1200px) {
+  .editor-body {
+    flex-direction: column;
+  }
+  .preview-pane {
+    min-height: 200px;
+  }
+}
+</style>
