@@ -13,7 +13,8 @@ import type {
   PostDetail,
   PostMeta,
   ProjectInfo,
-  SavePostInput
+  SavePostInput,
+  SavePostResult
 } from './types'
 
 /** 渲染进程通过 window.api 访问的全部能力（preload contextBridge 暴露） */
@@ -45,7 +46,12 @@ export interface Api {
   listPosts(): Promise<PostMeta[]>
   readPost(id: string): Promise<PostDetail>
   createPost(input: NewPostInput): Promise<PostMeta>
-  savePost(input: SavePostInput): Promise<void>
+  /**
+   * 保存文章（frontmatter + 正文）。携带 baseMtimeMs/baseSize 基线时，
+   * 主进程先校验文件未被外部修改，冲突时抛出 EXTERNAL_MODIFIED_PREFIX 前缀错误；
+   * 成功返回写盘后的 stat（作为下一次保存的基线）。
+   */
+  savePost(input: SavePostInput): Promise<SavePostResult>
   renamePost(id: string, newFileName: string): Promise<{ id: string }>
   deletePost(id: string): Promise<void>
   /** 批量更新文章（草稿状态/标签追加），返回逐篇结果，部分失败不回滚 */

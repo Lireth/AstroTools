@@ -28,7 +28,8 @@ async function handleRequestClose(): Promise<void> {
   }
   try {
     await editor.save()
-    if (editor.dirty) return // YAML 解析失败等导致保存中止 → 留在应用
+    // YAML 解析失败或用户取消覆盖外部修改导致保存中止 → 留在应用（dirty 仍为 true）
+    if (editor.dirty) return
   } catch {
     return
   }

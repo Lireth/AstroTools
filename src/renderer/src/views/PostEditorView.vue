@@ -43,8 +43,8 @@ const yamlOn = computed({
 
 async function doSave(): Promise<void> {
   try {
-    await editor.save()
-    ElMessage.success('已保存')
+    // aborted：YAML 解析失败或用户取消覆盖外部修改（均已就地提示），不弹成功/失败提示
+    if ((await editor.save()) === 'saved') ElMessage.success('已保存')
   } catch (err) {
     ElMessage.error(`保存失败: ${(err as Error).message}`)
   }
@@ -119,7 +119,7 @@ async function confirmLeave(): Promise<boolean> {
   }
   try {
     await editor.save()
-    // YAML 模式下解析失败时 save() 会静默中止（不抛错），dirty 仍为 true → 留在编辑页
+    // YAML 模式解析失败或用户取消覆盖外部修改时，save() 静默中止（不抛错），dirty 仍为 true → 留在编辑页
     if (editor.dirty) return false
     return true
   } catch (err) {

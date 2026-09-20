@@ -9,8 +9,10 @@ import type {
   NewPostInput,
   PostDetail,
   PostMeta,
-  SavePostInput
+  SavePostInput,
+  SavePostResult
 } from '../../shared/types'
+import { EXTERNAL_MODIFIED_PREFIX } from '../../shared/channels'
 import { pathExists, resolveWithin, sanitizeFileName, toPosix } from './paths'
 
 export interface CollectionDir {
@@ -239,6 +241,12 @@ export function clearPostCache(root?: string): void {
   }
 }
 
+/** 读取解析缓存中记录的文件 stat 快照（与缓存内容一致，用作保存时的冲突检测基线） */
+export function getParseCacheStat(abs: string): { mtimeMs: number; size: number } | null {
+  const hit = parseCache.get(abs)
+  return hit ? { mtimeMs: hit.mtimeMs, size: hit.size } : null
+}
+
 /** 扫描全部集合的文章列表 */
 export async function scanPosts(root: string, collections: CollectionDir[]): Promise<PostMeta[]> {
   const posts: PostMeta[] = []
@@ -265,14 +273,22 @@ function sortByDateDesc(a: PostMeta, b: PostMeta): number {
   return db - da
 }
 
-/** 读取文章详情 */
+/** 读取文章详情（附冲突检测基线 stat，与返回给编辑器的内容一致） */
 export async function readPost(root: string, id: string): Promise<PostDetail> {
   const abs = resolveWithin(root, id)
   if (!isMarkdownFile(abs)) throw new Error('仅支持 .md / .mdx 文章文件')
   const parsed = await parsePostFileCached(abs, root)
   if (!parsed) throw new Error(`文章读取失败: ${id}`)
   const collection = deriveCollectionName(root, id)
-  return { ...parsed.meta, collection, frontmatter: parsed.frontmatter, body: parsed.body }
+  const base = getParseCacheStat(abs)
+  return {
+    ...parsed.meta,
+    collection,
+    frontmatter: parsed.frontmatter,
+    body: parsed.body,
+    baseMtimeMs: base?.mtimeMs,
+    baseSize: base?.size
+  }
 }
 
 function deriveCollectionName(root: string, id: string): string {
@@ -330,14 +346,31 @@ export async function createPost(
   return { ...parsed.meta, collection: collection.name }
 }
 
-/** 保存文章（整体写回 frontmatter + 正文） */
-export async function savePost(root: string, input: SavePostInput): Promise<void> {
+/**
+ * 保存文章（整体写回 frontmatter + 正文）。
+ * 携带 baseMtimeMs/baseSize 时先校验文件未被外部修改（git pull / 其他编辑器），
+ * 冲突则抛出 EXTERNAL_MODIFIED_PREFIX 前缀错误，由渲染层确认后不带基线重试（强制覆盖）。
+ * 成功返回写盘后的 stat，作为下一次保存的基线。
+ */
+export async function savePost(root: string, input: SavePostInput): Promise<SavePostResult> {
   const abs = resolveWithin(root, input.id)
   if (!isMarkdownFile(abs)) throw new Error('仅支持 .md / .mdx 文章文件')
-  if (!(await pathExists(abs))) throw new Error(`文章不存在: ${input.id}`)
+  if (input.baseMtimeMs !== undefined || input.baseSize !== undefined) {
+    let st: import('node:fs').Stats
+    try {
+      st = await stat(abs)
+    } catch {
+      throw new Error(`文章不存在: ${input.id}`)
+    }
+    if (st.mtimeMs !== input.baseMtimeMs || st.size !== input.baseSize) {
+      throw new Error(EXTERNAL_MODIFIED_PREFIX + input.id)
+    }
+  }
   await atomicWriteFile(abs, stringifyPost(input.frontmatter, input.body))
   parseCache.delete(abs)
   templateCache.clear()
+  const saved = await stat(abs)
+  return { mtimeMs: saved.mtimeMs, size: saved.size }
 }
 
 /** 重命名文章文件 */

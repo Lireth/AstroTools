@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
+import { EXTERNAL_MODIFIED_PREFIX } from '@shared/channels'
 import type { FrontmatterTemplate, PostDetail } from '@shared/types'
 import { usePostsStore } from './posts'
 
@@ -38,6 +40,14 @@ function extraValueText(v: unknown): string {
   return String(v)
 }
 
+/** 主进程抛出的外部修改冲突错误（IPC 边界只保留 message，靠共享前缀识别） */
+function isExternalModifiedError(err: unknown): boolean {
+  return String((err as Error | null)?.message ?? '').startsWith(EXTERNAL_MODIFIED_PREFIX)
+}
+
+/** 保存结果：saved = 已写盘；aborted = 未保存（YAML 解析失败 / 用户取消覆盖外部修改） */
+export type SaveOutcome = 'saved' | 'aborted'
+
 export const useEditorStore = defineStore('editor', () => {
   // shallowRef：detail 来自 IPC（必须保持可克隆的普通对象），避免响应式 Proxy 混入 frontmatter
   const detail = shallowRef<PostDetail | null>(null)
@@ -69,6 +79,9 @@ export const useEditorStore = defineStore('editor', () => {
   let descriptionKey = 'description'
   let draftKey = 'draft'
   let originalFm: Record<string, unknown> = {}
+  // 打开/上次保存时的文件 stat 基线：保存时回传主进程做外部修改冲突检测
+  let baseMtimeMs: number | undefined
+  let baseSize: number | undefined
   const touched = { title: false, date: false, tags: false, description: false, draft: false }
 
   const wordCount = computed(() => body.value.replace(/\s/g, '').length)
@@ -106,6 +119,8 @@ export const useEditorStore = defineStore('editor', () => {
     yamlError.value = null
     try {
       detail.value = await window.api.readPost(id)
+      baseMtimeMs = detail.value.baseMtimeMs
+      baseSize = detail.value.baseSize
       const fm = detail.value.frontmatter
       const template = await window.api.getFrontmatterTemplate(detail.value.collection)
       deriveKeys(fm, template)
@@ -208,14 +223,28 @@ export const useEditorStore = defineStore('editor', () => {
     yamlError.value = null
   }
 
-  async function save(): Promise<void> {
-    if (!detail.value || saving.value) return
+  /** 外部修改冲突确认：返回 true 表示用户选择覆盖外部版本 */
+  async function confirmOverwriteExternal(): Promise<boolean> {
+    try {
+      await ElMessageBox.confirm(
+        '文件已被其他程序修改（如 git pull 或其他编辑器）。用当前编辑内容覆盖外部版本？选择"取消"可放弃修改后重新打开文章，以载入外部内容。',
+        '文件已被外部修改',
+        { type: 'warning', confirmButtonText: '覆盖外部版本', cancelButtonText: '取消' }
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function save(): Promise<SaveOutcome> {
+    if (!detail.value || saving.value) return 'aborted'
     saving.value = true
     try {
       let fm: Record<string, unknown>
       if (yamlMode.value) {
         const parsed = parseYamlText()
-        if (parsed === null) return // 解析失败：yamlError 已设置，中止保存
+        if (parsed === null) return 'aborted' // 解析失败：yamlError 已设置，中止保存
         fm = parsed
       } else {
         fm = { ...originalFm }
@@ -261,13 +290,34 @@ export const useEditorStore = defineStore('editor', () => {
         }
       }
 
-      await window.api.savePost({ id: detail.value.id, frontmatter: fm, body: body.value })
+      // 写盘并更新基线。withBase=true 时携带打开/上次保存的 stat，
+      // 主进程检测到外部修改会抛冲突错误，由用户确认后不带基线强制覆盖
+      const postId = detail.value.id
+      const persist = async (withBase: boolean): Promise<void> => {
+        const res = await window.api.savePost({
+          id: postId,
+          frontmatter: fm,
+          body: body.value,
+          ...(withBase && baseMtimeMs !== undefined ? { baseMtimeMs, baseSize } : {})
+        })
+        baseMtimeMs = res.mtimeMs
+        baseSize = res.size
+      }
+      try {
+        await persist(true)
+      } catch (err) {
+        if (!isExternalModifiedError(err)) throw err
+        if (!(await confirmOverwriteExternal())) return 'aborted'
+        await persist(false)
+      }
+
       if (yamlMode.value) {
         applyFmToForm(fm)
         yamlBase = yamlText.value
       }
       dirty.value = false
       usePostsStore().invalidate()
+      return 'saved'
     } finally {
       saving.value = false
     }
@@ -292,6 +342,8 @@ export const useEditorStore = defineStore('editor', () => {
     yamlError.value = null
     yamlBase = ''
     originalFm = {}
+    baseMtimeMs = undefined
+    baseSize = undefined
     for (const k of Object.keys(touched) as (keyof typeof touched)[]) touched[k] = false
   }
 
