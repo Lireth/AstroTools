@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { basename, dirname, extname, join } from 'node:path'
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join, sep } from 'node:path'
 import matter from 'gray-matter'
+import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
 import type {
   BulkUpdatePatch,
   BulkUpdateResult,
@@ -10,7 +11,7 @@ import type {
   PostMeta,
   SavePostInput
 } from '../../shared/types'
-import { resolveWithin, sanitizeFileName, toPosix } from './paths'
+import { pathExists, resolveWithin, sanitizeFileName, toPosix } from './paths'
 
 export interface CollectionDir {
   name: string
@@ -32,33 +33,44 @@ const TAGS_KEYS = ['tags', 'keywords', 'categories']
 const DRAFT_KEYS = ['draft', 'published']
 const DESCRIPTION_KEYS = ['description', 'excerpt', 'summary']
 
+/**
+ * frontmatter 专用 YAML 引擎（保存保真）：
+ * 采用 YAML 1.2 JSON schema —— 日期一律按字符串读入与写出，
+ * `pubDate: 2024-05-01` 在"解析 → 保存"往返后保持原样，不会被改写成
+ * 带时刻的 ISO 长串；同时规避默认 schema 把 Date dump 成 `...T00:00:00.000Z` 的漂移。
+ */
+const yamlEngine = {
+  parse: (input: string): object => yamlLoad(input, { schema: JSON_SCHEMA }) as object,
+  // lineWidth 必须为 -1（js-yaml 5 中 0 表示"宽度为 0"，会把含空格的值折叠成块标量）
+  stringify: (data: object): string =>
+    yamlDump(data, { schema: JSON_SCHEMA, lineWidth: -1, noRefs: true })
+}
+
+const MATTER_OPTIONS = { engines: { yaml: yamlEngine } }
+
 export function isMarkdownFile(name: string): boolean {
   return MARKDOWN_EXTS.has(extname(name).toLowerCase())
 }
 
 /** 递归列出目录下的全部 markdown 文件（绝对路径） */
-export function listMarkdownFiles(dir: string): string[] {
+export async function listMarkdownFiles(dir: string): Promise<string[]> {
   const result: string[] = []
-  const walk = (d: string, depth: number): void => {
+  const walk = async (d: string, depth: number): Promise<void> => {
     if (depth > 6) return
     let entries: import('node:fs').Dirent[]
     try {
-      entries = readdirSafe(d)
+      entries = await readdir(d, { withFileTypes: true })
     } catch {
       return
     }
     for (const entry of entries) {
       const full = join(d, entry.name)
       if (entry.isFile() && isMarkdownFile(entry.name)) result.push(full)
-      else if (entry.isDirectory() && entry.name !== 'node_modules') walk(full, depth + 1)
+      else if (entry.isDirectory() && entry.name !== 'node_modules') await walk(full, depth + 1)
     }
   }
-  walk(dir, 0)
+  await walk(dir, 0)
   return result
-}
-
-function readdirSafe(d: string): import('node:fs').Dirent[] {
-  return readdirSync(d, { withFileTypes: true })
 }
 
 function toDateISO(value: unknown): string | undefined {
@@ -109,14 +121,14 @@ export interface ParsedPost {
 }
 
 /** 解析单个 markdown 文件为文章元数据 */
-export function parsePostFile(absPath: string, projectRoot: string): ParsedPost | null {
+export async function parsePostFile(absPath: string, projectRoot: string): Promise<ParsedPost | null> {
   let raw: string
   try {
-    raw = readFileSync(absPath, 'utf-8')
+    raw = await readFile(absPath, 'utf-8')
   } catch {
     return null
   }
-  const parsed = matter(raw)
+  const parsed = matter(raw, MATTER_OPTIONS)
   const data = parsed.data as Record<string, unknown>
   const fileName = basename(absPath)
   const id = toPosix(absPath.slice(projectRoot.length + 1))
@@ -149,7 +161,7 @@ export function parsePostFile(absPath: string, projectRoot: string): ParsedPost 
 
   let updatedAt = 0
   try {
-    updatedAt = statSync(absPath).mtimeMs
+    updatedAt = (await stat(absPath)).mtimeMs
   } catch {
     updatedAt = Date.now()
   }
@@ -175,13 +187,71 @@ export function parsePostFile(absPath: string, projectRoot: string): ParsedPost 
 
 const MD_EXT_RE = /\.(md|mdx)$/i
 
+// ---- 解析缓存：文件 mtime+size 未变化时直接复用上次解析结果，避免每次全量重扫 ----
+interface ParseCacheEntry {
+  mtimeMs: number
+  size: number
+  parsed: ParsedPost | null
+}
+const parseCache = new Map<string, ParseCacheEntry>()
+
+// ---- frontmatter 模板缓存：键 `${root}::${collection}`，任何写操作后整体失效 ----
+const templateCache = new Map<string, FrontmatterTemplate>()
+
+/** 带缓存的文件解析 */
+export async function parsePostFileCached(
+  absPath: string,
+  projectRoot: string
+): Promise<ParsedPost | null> {
+  let mtimeMs = 0
+  let size = 0
+  try {
+    const s = await stat(absPath)
+    mtimeMs = s.mtimeMs
+    size = s.size
+  } catch {
+    parseCache.delete(absPath)
+    return null
+  }
+  const hit = parseCache.get(absPath)
+  if (hit && hit.mtimeMs === mtimeMs && hit.size === size) return hit.parsed
+  const parsed = await parsePostFile(absPath, projectRoot)
+  parseCache.set(absPath, { mtimeMs, size, parsed })
+  return parsed
+}
+
+/** 清理解析与模板缓存（root 省略时全清；切换/关闭项目时调用） */
+export function clearPostCache(root?: string): void {
+  if (root === undefined) {
+    parseCache.clear()
+    templateCache.clear()
+    return
+  }
+  const sepPrefix = root.endsWith(sep) ? root : root + sep
+  const posixPrefix = sepPrefix.replace(/\\/g, '/')
+  for (const key of parseCache.keys()) {
+    if (key.startsWith(sepPrefix) || key.startsWith(posixPrefix)) parseCache.delete(key)
+  }
+  for (const key of templateCache.keys()) {
+    if (key.startsWith(root + '::')) templateCache.delete(key)
+  }
+}
+
 /** 扫描全部集合的文章列表 */
-export function scanPosts(root: string, collections: CollectionDir[]): PostMeta[] {
+export async function scanPosts(root: string, collections: CollectionDir[]): Promise<PostMeta[]> {
   const posts: PostMeta[] = []
+  const seen = new Set<string>()
   for (const c of collections) {
-    for (const file of listMarkdownFiles(c.dir)) {
-      const parsed = parsePostFile(file, root)
+    for (const file of await listMarkdownFiles(c.dir)) {
+      seen.add(file)
+      const parsed = await parsePostFileCached(file, root)
       if (parsed) posts.push({ ...parsed.meta, collection: c.name })
+    }
+  }
+  // 淘汰已删除文件的缓存条目，避免长期驻留增长
+  if (parseCache.size > seen.size) {
+    for (const key of parseCache.keys()) {
+      if (!seen.has(key)) parseCache.delete(key)
     }
   }
   return posts.sort(sortByDateDesc)
@@ -194,10 +264,10 @@ function sortByDateDesc(a: PostMeta, b: PostMeta): number {
 }
 
 /** 读取文章详情 */
-export function readPost(root: string, id: string): PostDetail {
+export async function readPost(root: string, id: string): Promise<PostDetail> {
   const abs = resolveWithin(root, id)
   if (!isMarkdownFile(abs)) throw new Error('仅支持 .md / .mdx 文章文件')
-  const parsed = parsePostFile(abs, root)
+  const parsed = await parsePostFileCached(abs, root)
   if (!parsed) throw new Error(`文章读取失败: ${id}`)
   const collection = deriveCollectionName(root, id)
   return { ...parsed.meta, collection, frontmatter: parsed.frontmatter, body: parsed.body }
@@ -215,43 +285,53 @@ function deriveCollectionName(root: string, id: string): string {
 function stringifyPost(frontmatter: Record<string, unknown>, body: string): string {
   const normalizedBody = body.replace(/\r\n/g, '\n')
   if (Object.keys(frontmatter).length === 0) return normalizedBody
-  return matter.stringify(normalizedBody, frontmatter, { language: 'yaml' })
+  return matter.stringify(normalizedBody, frontmatter, { language: 'yaml', ...MATTER_OPTIONS })
 }
 
 /** 新建文章 */
-export function createPost(root: string, input: NewPostInput, collections: CollectionDir[]): PostMeta {
+export async function createPost(
+  root: string,
+  input: NewPostInput,
+  collections: CollectionDir[]
+): Promise<PostMeta> {
   const collection = collections.find((c) => c.name === input.collection)
   if (!collection) throw new Error(`集合 "${input.collection}" 不存在`)
   let fileName = sanitizeFileName(input.fileName)
   if (!isMarkdownFile(fileName)) fileName += '.md'
 
   const abs = resolveWithin(collection.dir, fileName)
-  if (existsSync(abs)) throw new Error(`文件 "${fileName}" 已存在，请换个文件名`)
-  mkdirSync(dirname(abs), { recursive: true })
-  writeFileSync(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  if (await pathExists(abs)) throw new Error(`文件 "${fileName}" 已存在，请换个文件名`)
+  await mkdir(dirname(abs), { recursive: true })
+  await writeFile(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  parseCache.delete(abs)
+  templateCache.clear()
 
-  const parsed = parsePostFile(abs, root)
+  const parsed = await parsePostFileCached(abs, root)
   if (!parsed) throw new Error('文章创建后读取失败')
   return { ...parsed.meta, collection: collection.name }
 }
 
 /** 保存文章（整体写回 frontmatter + 正文） */
-export function savePost(root: string, input: SavePostInput): void {
+export async function savePost(root: string, input: SavePostInput): Promise<void> {
   const abs = resolveWithin(root, input.id)
   if (!isMarkdownFile(abs)) throw new Error('仅支持 .md / .mdx 文章文件')
-  if (!existsSync(abs)) throw new Error(`文章不存在: ${input.id}`)
-  writeFileSync(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  if (!(await pathExists(abs))) throw new Error(`文章不存在: ${input.id}`)
+  await writeFile(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  parseCache.delete(abs)
+  templateCache.clear()
 }
 
 /** 重命名文章文件 */
-export function renamePost(root: string, id: string, newFileName: string): { id: string } {
+export async function renamePost(root: string, id: string, newFileName: string): Promise<{ id: string }> {
   const abs = resolveWithin(root, id)
-  if (!existsSync(abs)) throw new Error(`文章不存在: ${id}`)
+  if (!(await pathExists(abs))) throw new Error(`文章不存在: ${id}`)
   let fileName = sanitizeFileName(newFileName)
   if (!isMarkdownFile(fileName)) fileName += extname(abs) || '.md'
   const target = join(dirname(abs), fileName)
-  if (target !== abs && existsSync(target)) throw new Error(`文件 "${fileName}" 已存在`)
-  renameSync(abs, target)
+  if (target !== abs && (await pathExists(target))) throw new Error(`文件 "${fileName}" 已存在`)
+  await rename(abs, target)
+  parseCache.delete(abs)
+  templateCache.clear()
   return { id: toPosix(target.slice(root.length + 1)) }
 }
 
@@ -262,35 +342,39 @@ export async function deletePost(
   trash: (path: string) => Promise<void>
 ): Promise<void> {
   const abs = resolveWithin(root, id)
-  if (!existsSync(abs)) throw new Error(`文章不存在: ${id}`)
+  if (!(await pathExists(abs))) throw new Error(`文章不存在: ${id}`)
   await trash(abs)
+  parseCache.delete(abs)
+  templateCache.clear()
 }
 
 /**
  * 批量更新文章（草稿状态/标签追加）。逐篇独立处理：单篇失败不中断整体；
  * 某篇探测不到对应键时跳过并注明原因，不擅自给不认识 schema 的文章加键。
  */
-export function bulkUpdatePosts(
+export async function bulkUpdatePosts(
   root: string,
   ids: string[],
   patch: BulkUpdatePatch
-): BulkUpdateResult[] {
-  return ids.map((id) => {
-    try {
-      const reason = applyBulkPatch(root, id, patch)
-      return reason ? { id, ok: false, error: reason } : { id, ok: true }
-    } catch (err) {
-      return { id, ok: false, error: (err as Error).message }
-    }
-  })
+): Promise<BulkUpdateResult[]> {
+  return Promise.all(
+    ids.map(async (id) => {
+      try {
+        const reason = await applyBulkPatch(root, id, patch)
+        return reason ? { id, ok: false, error: reason } : { id, ok: true }
+      } catch (err) {
+        return { id, ok: false, error: (err as Error).message }
+      }
+    })
+  )
 }
 
 /** 对单篇文章应用 patch。成功返回 null，失败/跳过返回原因。 */
-function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): string | null {
+async function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): Promise<string | null> {
   const abs = resolveWithin(root, id)
   if (!isMarkdownFile(abs)) return '仅支持 .md / .mdx 文章文件'
-  if (!existsSync(abs)) return '文件不存在（可能已被移动或删除）'
-  const parsed = parsePostFile(abs, root)
+  if (!(await pathExists(abs))) return '文件不存在（可能已被移动或删除）'
+  const parsed = await parsePostFileCached(abs, root)
   if (!parsed) return '文章解析失败'
 
   const fm = { ...parsed.frontmatter }
@@ -314,7 +398,11 @@ function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): strin
     }
   }
 
-  if (changed) writeFileSync(abs, stringifyPost(fm, parsed.body), 'utf-8')
+  if (changed) {
+    await writeFile(abs, stringifyPost(fm, parsed.body), 'utf-8')
+    parseCache.delete(abs)
+    templateCache.clear()
+  }
   return null
 }
 
@@ -322,26 +410,32 @@ function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): strin
  * 依据集合内现有文章推断新建文章的 frontmatter 模板：
  * 统计键出现频率并借用最新文章的示例值，使新建文件天然兼容当前主题的 schema。
  */
-export function buildFrontmatterTemplate(
+export async function buildFrontmatterTemplate(
   root: string,
   collectionName: string,
   collections: CollectionDir[]
-): FrontmatterTemplate {
+): Promise<FrontmatterTemplate> {
+  const cacheKey = root + '::' + collectionName
+  const cached = templateCache.get(cacheKey)
+  if (cached) return cached
+
   const collection = collections.find((c) => c.name === collectionName)
   if (!collection) throw new Error(`集合 "${collectionName}" 不存在`)
 
-  const files = listMarkdownFiles(collection.dir)
+  const files = await listMarkdownFiles(collection.dir)
   const postsByKey: { keys: string[]; data: Record<string, unknown>; date: number }[] = []
-  for (const file of files.slice(0, 30)) {
-    const parsed = parsePostFile(file, root)
-    if (parsed) {
-      postsByKey.push({
-        keys: Object.keys(parsed.frontmatter),
-        data: parsed.frontmatter,
-        date: parsed.meta.date ? Date.parse(parsed.meta.date) : parsed.meta.updatedAt
-      })
-    }
-  }
+  await Promise.all(
+    files.slice(0, 30).map(async (file) => {
+      const parsed = await parsePostFileCached(file, root)
+      if (parsed) {
+        postsByKey.push({
+          keys: Object.keys(parsed.frontmatter),
+          data: parsed.frontmatter,
+          date: parsed.meta.date ? Date.parse(parsed.meta.date) : parsed.meta.updatedAt
+        })
+      }
+    })
+  )
   postsByKey.sort((a, b) => b.date - a.date)
 
   const counts = new Map<string, number>()
@@ -375,5 +469,7 @@ export function buildFrontmatterTemplate(
   const draftKey = keys.find((k) => DRAFT_KEYS.includes(k.toLowerCase()))
   const descriptionKey = keys.find((k) => DESCRIPTION_KEYS.includes(k.toLowerCase()))
 
-  return { keys, sample, dateKey, titleKey, tagsKey, draftKey, descriptionKey }
+  const template: FrontmatterTemplate = { keys, sample, dateKey, titleKey, tagsKey, draftKey, descriptionKey }
+  templateCache.set(cacheKey, template)
+  return template
 }

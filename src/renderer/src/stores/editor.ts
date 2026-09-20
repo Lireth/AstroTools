@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
+import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
 import type { FrontmatterTemplate, PostDetail } from '@shared/types'
 import { usePostsStore } from './posts'
 
@@ -8,6 +8,12 @@ export interface ExtraField {
   key: string
   value: string
 }
+
+// 与主进程 postService 的 yamlEngine 保持一致：日期按字符串读入/写出（YAML 1.2 JSON schema）。
+// 若用默认 schema，yamlLoad 会把 `2024-05-01` 解析成 Date，而主进程保存时按 JSON_SCHEMA
+// dump 不接受 Date 对象，YAML 模式保存将直接报错。
+const YAML_DUMP_OPTS = { schema: JSON_SCHEMA, lineWidth: -1, noRefs: true }
+const YAML_LOAD_OPTS = { schema: JSON_SCHEMA }
 
 const TITLE_KEYS = ['title', 'name']
 const TAGS_KEYS = ['tags', 'keywords', 'categories']
@@ -157,7 +163,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   function enterYamlMode(): void {
     if (!detail.value) return
-    yamlText.value = yamlDump(detail.value.frontmatter ?? {}, { lineWidth: 0, noRefs: true })
+    yamlText.value = yamlDump(detail.value.frontmatter ?? {}, YAML_DUMP_OPTS)
     yamlBase = yamlText.value
     yamlError.value = null
     yamlMode.value = true
@@ -166,7 +172,7 @@ export const useEditorStore = defineStore('editor', () => {
   /** 解析当前 YAML 文本；失败时设置 yamlError 并返回 null */
   function parseYamlText(): Record<string, unknown> | null {
     try {
-      const parsed: unknown = yamlLoad(yamlText.value)
+      const parsed: unknown = yamlLoad(yamlText.value, YAML_LOAD_OPTS)
       if (parsed === null || parsed === undefined) {
         yamlError.value = null
         return {}
@@ -216,7 +222,14 @@ export const useEditorStore = defineStore('editor', () => {
         }
 
         write(titleKey, title.value.trim(), touched.title)
-        if (dateStr.value) write(dateKey, dateStr.value, touched.date)
+        if (touched.date) {
+          if (dateStr.value) {
+            fm[dateKey] = dateStr.value
+          } else if (Object.keys(originalFm).some((k) => k.toLowerCase() === dateKey.toLowerCase())) {
+            // 用户清空了日期且该键原本存在 → 移除键（此前清空操作不生效）
+            delete fm[dateKey]
+          }
+        }
         // 展开为数组浅拷贝：ref 内的数组是响应式 Proxy，无法结构化克隆过 IPC
         write(tagsKey, [...tags.value], touched.tags)
         write(descriptionKey, description.value, touched.description)

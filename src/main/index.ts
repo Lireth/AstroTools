@@ -1,5 +1,5 @@
 import { app, BrowserWindow, net, protocol } from 'electron'
-import { existsSync, statSync } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { disposeIpc, registerIpcHandlers } from './ipc'
@@ -65,7 +65,13 @@ function registerMediaProtocol(): void {
       if (abs !== publicRoot && !abs.startsWith(publicRoot + sep)) {
         return new Response('forbidden', { status: 403 })
       }
-      if (!existsSync(abs) || !statSync(abs).isFile()) {
+      let st
+      try {
+        st = await stat(abs)
+      } catch {
+        return new Response('not found', { status: 404 })
+      }
+      if (!st.isFile()) {
         return new Response('not found', { status: 404 })
       }
 

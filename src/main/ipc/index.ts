@@ -5,6 +5,7 @@ import { importImage, listImages } from '../services/imageService'
 import {
   bulkUpdatePosts,
   buildFrontmatterTemplate,
+  clearPostCache,
   createPost,
   deletePost,
   readPost,
@@ -55,19 +56,21 @@ export function registerIpcHandlers(): void {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
   })
 
-  ipcMain.handle('project:open', (_e, path: string) => {
-    const validation = validateAstroProject(path)
+  ipcMain.handle('project:open', async (_e, path: string) => {
+    const validation = await validateAstroProject(path)
     if (!validation.ok) throw new Error(validation.reason ?? '不是有效的 Astro 项目')
     void devManager?.stop()
-    const info = readProjectInfo(path)
+    const previousRoot = getCurrentRoot()
+    const info = await readProjectInfo(path)
     setCurrentProject(info)
+    if (previousRoot && previousRoot !== path) clearPostCache(previousRoot)
     addRecentProject(app.getPath('userData'), path)
     return info
   })
 
-  ipcMain.handle('project:refresh', () => {
+  ipcMain.handle('project:refresh', async () => {
     const root = requireRoot()
-    const info = readProjectInfo(root)
+    const info = await readProjectInfo(root)
     setCurrentProject(info)
     return info
   })
@@ -82,19 +85,16 @@ export function registerIpcHandlers(): void {
   })
 
   // ---- 文章 ----
-  ipcMain.handle('posts:list', () => {
+  ipcMain.handle('posts:list', async () => {
     const root = requireRoot()
-    return scanPosts(root, discoverCollections(root))
+    return scanPosts(root, await discoverCollections(root))
   })
 
-  ipcMain.handle('posts:read', (_e, id: string) => {
-    const root = requireRoot()
-    return readPost(root, id)
-  })
+  ipcMain.handle('posts:read', (_e, id: string) => readPost(requireRoot(), id))
 
-  ipcMain.handle('posts:create', (_e, input) => {
+  ipcMain.handle('posts:create', async (_e, input) => {
     const root = requireRoot()
-    return createPost(root, input, discoverCollections(root))
+    return createPost(root, input, await discoverCollections(root))
   })
 
   ipcMain.handle('posts:save', (_e, input) => savePost(requireRoot(), input))
@@ -111,11 +111,14 @@ export function registerIpcHandlers(): void {
     bulkUpdatePosts(requireRoot(), ids, patch)
   )
 
-  ipcMain.handle('posts:check-links', () => checkLinks(requireRoot(), discoverCollections(requireRoot())))
-
-  ipcMain.handle('posts:template', (_e, collection: string) => {
+  ipcMain.handle('posts:check-links', async () => {
     const root = requireRoot()
-    return buildFrontmatterTemplate(root, collection, discoverCollections(root))
+    return checkLinks(root, await discoverCollections(root))
+  })
+
+  ipcMain.handle('posts:template', async (_e, collection: string) => {
+    const root = requireRoot()
+    return buildFrontmatterTemplate(root, collection, await discoverCollections(root))
   })
 
   // ---- 图片 ----

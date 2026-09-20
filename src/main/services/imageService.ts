@@ -1,7 +1,7 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import type { ImageItem, ImportImageResult } from '../../shared/types'
-import { sanitizeFileName } from './paths'
+import { pathExists, sanitizeFileName } from './paths'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.ico', '.bmp'])
 
@@ -14,43 +14,43 @@ export function publicDir(root: string): string {
 }
 
 /** 递归扫描 public/ 下的图片资源 */
-export function listImages(root: string): ImageItem[] {
+export async function listImages(root: string): Promise<ImageItem[]> {
   const base = publicDir(root)
-  if (!existsSync(base)) return []
+  if (!(await pathExists(base))) return []
   const items: ImageItem[] = []
-  const walk = (dir: string, depth: number): void => {
+  const walk = async (dir: string, depth: number): Promise<void> => {
     if (depth > 6) return
     let entries: import('node:fs').Dirent[]
     try {
-      entries = readdirSync(dir, { withFileTypes: true })
+      entries = await readdir(dir, { withFileTypes: true })
     } catch {
       return
     }
     for (const entry of entries) {
       const full = join(dir, entry.name)
       if (entry.isFile() && isImageFile(entry.name)) {
-        items.push(toImageItem(root, full))
+        items.push(await toImageItem(root, full))
       } else if (entry.isDirectory() && entry.name !== 'node_modules') {
-        walk(full, depth + 1)
+        await walk(full, depth + 1)
       }
     }
   }
-  walk(base, 0)
+  await walk(base, 0)
   return items.sort((a, b) => a.relPath.localeCompare(b.relPath))
 }
 
-function toImageItem(root: string, absPath: string): ImageItem {
+async function toImageItem(root: string, absPath: string): Promise<ImageItem> {
   const base = publicDir(root)
   const relPath = absPath.slice(base.length + 1).replace(/\\/g, '/')
-  const stat = statSync(absPath)
+  const st = await stat(absPath)
   const ext = extname(absPath).toLowerCase()
   const name = basename(absPath)
   return {
     relPath,
     name,
     ext: ext.slice(1),
-    size: stat.size,
-    lastModified: stat.mtimeMs,
+    size: st.size,
+    lastModified: st.mtimeMs,
     url: `media://local/${relPath
       .split('/')
       .map((seg) => encodeURIComponent(seg))
@@ -60,24 +60,25 @@ function toImageItem(root: string, absPath: string): ImageItem {
 }
 
 /** 将本机图片复制进 public/images/（重名自动追加序号） */
-export function importImage(root: string, srcPath: string): ImportImageResult {
+export async function importImage(root: string, srcPath: string): Promise<ImportImageResult> {
   if (!isImageFile(srcPath)) throw new Error('仅支持常见图片格式（png/jpg/gif/webp/svg/avif/ico/bmp）')
-  if (!existsSync(srcPath)) throw new Error('所选图片文件不存在')
+  if (!(await pathExists(srcPath))) throw new Error('所选图片文件不存在')
 
   const targetDir = join(publicDir(root), 'images')
-  mkdirSync(targetDir, { recursive: true })
+  await mkdir(targetDir, { recursive: true })
 
   const ext = extname(srcPath).toLowerCase()
-  let name = sanitizeFileName(basename(srcPath, ext)) + ext
+  const stem = sanitizeFileName(basename(srcPath, ext))
+  let name = stem + ext
   let counter = 1
-  while (existsSync(join(targetDir, name))) {
-    name = `${sanitizeFileName(basename(srcPath, ext))}-${counter}${ext}`
+  while (await pathExists(join(targetDir, name))) {
+    name = `${stem}-${counter}${ext}`
     counter++
   }
 
   const target = join(targetDir, name)
-  copyFileSync(srcPath, target)
-  const image = toImageItem(root, target)
+  await copyFile(srcPath, target)
+  const image = await toImageItem(root, target)
   return {
     image,
     markdownRef: `![${basename(srcPath, ext)}](${image.refPath})`
