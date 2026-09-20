@@ -137,8 +137,7 @@ export const usePostsStore = defineStore('posts', () => {
       } else if (template.descriptionKey && key === template.descriptionKey) {
         fm[key] = input.description
       } else if (template.draftKey && key === template.draftKey) {
-        fm[key] =
-          template.draftKey.toLowerCase() === 'published' ? !input.draft : input.draft
+        fm[key] = template.draftKey.toLowerCase() === 'published' ? !input.draft : input.draft
       } else {
         const v = template.sample[key]
         if (v !== undefined) fm[key] = v

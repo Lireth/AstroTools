@@ -9,8 +9,7 @@ let systemThemeCleanup: (() => void) | null = null
 
 /** 应用主题到文档根节点（Element Plus 暗色变量 + 自定义变量均挂在 html.dark 下） */
 export function applyTheme(theme: ThemeMode): void {
-  const dark =
-    theme === 'dark' || (theme === 'system' && darkMedia.matches)
+  const dark = theme === 'dark' || (theme === 'system' && darkMedia.matches)
   document.documentElement.classList.toggle('dark', dark)
 }
 

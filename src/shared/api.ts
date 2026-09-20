@@ -21,7 +21,9 @@ export interface Api {
   /** 读取应用设置（最近项目 + 主题 + 编辑器字号） */
   getSettings(): Promise<AppSettings>
   /** 更新应用偏好（主题/编辑器字号），返回保存后的完整设置 */
-  savePreferences(patch: Partial<Pick<AppSettings, 'theme' | 'editorFontSize'>>): Promise<AppSettings>
+  savePreferences(
+    patch: Partial<Pick<AppSettings, 'theme' | 'editorFontSize'>>
+  ): Promise<AppSettings>
   /** 从最近列表移除一条 */
   removeRecentProject(path: string): Promise<void>
   /** 弹出系统文件夹选择框，返回所选路径或 null */

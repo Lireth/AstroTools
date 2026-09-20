@@ -62,7 +62,8 @@ export async function validateAstroProject(root: string): Promise<ProjectValidat
 async function detectPackageManager(root: string): Promise<ProjectInfo['packageManager']> {
   if (await pathExists(join(root, 'pnpm-lock.yaml'))) return 'pnpm'
   if (await pathExists(join(root, 'yarn.lock'))) return 'yarn'
-  if (await pathExists(join(root, 'bun.lockb')) || (await pathExists(join(root, 'bun.lock')))) return 'bun'
+  if ((await pathExists(join(root, 'bun.lockb'))) || (await pathExists(join(root, 'bun.lock'))))
+    return 'bun'
   if (await pathExists(join(root, 'package-lock.json'))) return 'npm'
   return 'unknown'
 }

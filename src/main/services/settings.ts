@@ -50,12 +50,16 @@ export async function updateAppPreferences(
 ): Promise<AppSettings> {
   const settings = await loadSettings(storageDir)
   if (patch.theme !== undefined && THEMES.includes(patch.theme)) settings.theme = patch.theme
-  if (patch.editorFontSize !== undefined) settings.editorFontSize = clampFontSize(patch.editorFontSize)
+  if (patch.editorFontSize !== undefined)
+    settings.editorFontSize = clampFontSize(patch.editorFontSize)
   await saveSettings(storageDir, settings)
   return settings
 }
 
-export async function addRecentProject(storageDir: string, projectPath: string): Promise<AppSettings> {
+export async function addRecentProject(
+  storageDir: string,
+  projectPath: string
+): Promise<AppSettings> {
   const settings = await loadSettings(storageDir)
   settings.recentProjects = [
     projectPath,
@@ -65,7 +69,10 @@ export async function addRecentProject(storageDir: string, projectPath: string):
   return settings
 }
 
-export async function removeRecentProject(storageDir: string, projectPath: string): Promise<AppSettings> {
+export async function removeRecentProject(
+  storageDir: string,
+  projectPath: string
+): Promise<AppSettings> {
   const settings = await loadSettings(storageDir)
   settings.recentProjects = settings.recentProjects.filter((p) => p !== projectPath)
   await saveSettings(storageDir, settings)

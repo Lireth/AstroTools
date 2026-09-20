@@ -85,7 +85,8 @@ export const useEditorStore = defineStore('editor', () => {
         if (hit) return hit
       }
       if (pattern) {
-        const hit = fmKeys.find((k) => pattern.test(k)) ?? template.keys.find((k) => pattern.test(k))
+        const hit =
+          fmKeys.find((k) => pattern.test(k)) ?? template.keys.find((k) => pattern.test(k))
         if (hit) return hit
       }
       return undefined
@@ -120,7 +121,8 @@ export const useEditorStore = defineStore('editor', () => {
   /** 把 frontmatter 对象映射到表单字段（打开文章与 YAML 模式切回共用） */
   function applyFmToForm(fm: Record<string, unknown>): void {
     originalFm = fm
-    title.value = typeof fm[titleKey] === 'string' ? (fm[titleKey] as string) : detail.value?.title ?? ''
+    title.value =
+      typeof fm[titleKey] === 'string' ? (fm[titleKey] as string) : (detail.value?.title ?? '')
     const dateVal = dateKey ? fm[dateKey] : undefined
     const dateIso =
       dateVal instanceof Date && !Number.isNaN(dateVal.getTime())
@@ -133,10 +135,12 @@ export const useEditorStore = defineStore('editor', () => {
     tags.value = Array.isArray(rawTags)
       ? rawTags.map((t) => String(t).trim()).filter(Boolean)
       : typeof rawTags === 'string'
-        ? rawTags.split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+        ? rawTags
+            .split(/[,，]/)
+            .map((t) => t.trim())
+            .filter(Boolean)
         : []
-    description.value =
-      typeof fm[descriptionKey] === 'string' ? (fm[descriptionKey] as string) : ''
+    description.value = typeof fm[descriptionKey] === 'string' ? (fm[descriptionKey] as string) : ''
     draft.value =
       draftKey.toLowerCase() === 'published' ? fm[draftKey] === false : fm[draftKey] === true
 
@@ -216,7 +220,10 @@ export const useEditorStore = defineStore('editor', () => {
       } else {
         fm = { ...originalFm }
         const write = (key: string, value: unknown, isTouched: boolean): void => {
-          if (Object.keys(originalFm).some((k) => k.toLowerCase() === key.toLowerCase()) || isTouched) {
+          if (
+            Object.keys(originalFm).some((k) => k.toLowerCase() === key.toLowerCase()) ||
+            isTouched
+          ) {
             fm[key] = value
           }
         }
@@ -225,7 +232,9 @@ export const useEditorStore = defineStore('editor', () => {
         if (touched.date) {
           if (dateStr.value) {
             fm[dateKey] = dateStr.value
-          } else if (Object.keys(originalFm).some((k) => k.toLowerCase() === dateKey.toLowerCase())) {
+          } else if (
+            Object.keys(originalFm).some((k) => k.toLowerCase() === dateKey.toLowerCase())
+          ) {
             // 用户清空了日期且该键原本存在 → 移除键（此前清空操作不生效）
             delete fm[dateKey]
           }

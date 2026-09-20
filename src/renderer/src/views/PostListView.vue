@@ -26,9 +26,7 @@ const fileNameEdited = ref(false)
 
 const collectionNames = computed(() => project.info?.collections.map((c) => c.name) ?? [])
 
-const hasFilters = computed(
-  () => posts.query || posts.tag || posts.draftOnly || posts.collection
-)
+const hasFilters = computed(() => posts.query || posts.tag || posts.draftOnly || posts.collection)
 
 // ---- 批量选择 ----
 const selected = ref<string[]>([])
@@ -242,7 +240,10 @@ async function removePost(id: string, title: string): Promise<void> {
 }
 
 // ---- git 集成 ----
-const GIT_BADGE: Record<GitFileStatus, { text: string; type: 'warning' | 'success' | 'info' | 'danger' }> = {
+const GIT_BADGE: Record<
+  GitFileStatus,
+  { text: string; type: 'warning' | 'success' | 'info' | 'danger' }
+> = {
   modified: { text: '修改', type: 'warning' },
   added: { text: '新增', type: 'success' },
   deleted: { text: '删除', type: 'danger' },
@@ -252,7 +253,9 @@ const commitDialogVisible = ref(false)
 const commitMessage = ref('')
 const committing = ref(false)
 
-function gitBadge(id: string): { text: string; type: 'warning' | 'success' | 'info' | 'danger' } | null {
+function gitBadge(
+  id: string
+): { text: string; type: 'warning' | 'success' | 'info' | 'danger' } | null {
   const s = posts.gitFiles[id]
   return s ? GIT_BADGE[s] : null
 }
@@ -323,9 +326,14 @@ onMounted(() => {
       </el-tag>
     </div>
 
-    <div v-if="posts.loading && !posts.posts.length" class="empty-wrap" v-loading="true"></div>
+    <div v-if="posts.loading && !posts.posts.length" v-loading="true" class="empty-wrap"></div>
 
-    <el-empty v-else-if="!posts.filtered.length" :description="hasFilters ? '没有符合筛选条件的文章' : '这个博客还没有文章，点击右上角新建一篇吧'">
+    <el-empty
+      v-else-if="!posts.filtered.length"
+      :description="
+        hasFilters ? '没有符合筛选条件的文章' : '这个博客还没有文章，点击右上角新建一篇吧'
+      "
+    >
       <el-button v-if="hasFilters" @click="posts.clearFilters()">清除筛选</el-button>
     </el-empty>
 
@@ -349,7 +357,12 @@ onMounted(() => {
           </div>
           <div v-if="p.description" class="post-desc">{{ p.description }}</div>
           <div class="post-tags">
-            <span v-for="t in p.tags.slice(0, 6)" :key="t" class="post-tag" @click.stop="posts.tag = t">
+            <span
+              v-for="t in p.tags.slice(0, 6)"
+              :key="t"
+              class="post-tag"
+              @click.stop="posts.tag = t"
+            >
               #{{ t }}
             </span>
           </div>
@@ -361,7 +374,14 @@ onMounted(() => {
               <el-button :icon="EditPen" circle size="small" @click="openEditor(p.id)" />
             </el-tooltip>
             <el-tooltip content="删除（移入回收站）" placement="top">
-              <el-button :icon="Delete" circle size="small" type="danger" plain @click="removePost(p.id, p.title)" />
+              <el-button
+                :icon="Delete"
+                circle
+                size="small"
+                type="danger"
+                plain
+                @click="removePost(p.id, p.title)"
+              />
             </el-tooltip>
           </div>
         </div>
@@ -374,10 +394,18 @@ onMounted(() => {
         <el-button size="small" @click="bulkSetDraft(false)">发布</el-button>
         <el-button size="small" @click="bulkSetDraft(true)">转草稿</el-button>
         <el-button size="small" @click="openBulkTags">加标签</el-button>
-        <el-button v-if="posts.isGitRepo" size="small" type="primary" plain @click="openCommitDialog">
+        <el-button
+          v-if="posts.isGitRepo"
+          size="small"
+          type="primary"
+          plain
+          @click="openCommitDialog"
+        >
           提交
         </el-button>
-        <el-button size="small" type="danger" plain :icon="Delete" @click="bulkDelete">删除</el-button>
+        <el-button size="small" type="danger" plain :icon="Delete" @click="bulkDelete"
+          >删除</el-button
+        >
         <el-button size="small" text @click="selected = []">取消</el-button>
       </div>
     </transition>
@@ -392,11 +420,18 @@ onMounted(() => {
         placeholder="输入后回车创建标签（将追加合并到所选文章）"
         style="width: 100%"
       >
-        <el-option v-for="t in posts.tagCounts.slice(0, 30)" :key="t.name" :label="t.name" :value="t.name" />
+        <el-option
+          v-for="t in posts.tagCounts.slice(0, 30)"
+          :key="t.name"
+          :label="t.name"
+          :value="t.name"
+        />
       </el-select>
       <template #footer>
         <el-button @click="bulkTagVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitBulkTags">应用到 {{ selected.length }} 篇</el-button>
+        <el-button type="primary" @click="submitBulkTags"
+          >应用到 {{ selected.length }} 篇</el-button
+        >
       </template>
     </el-dialog>
 
@@ -406,7 +441,8 @@ onMounted(() => {
         <el-empty v-if="!linkIssues.length" description="未发现问题，全部引用有效" />
         <template v-else>
           <div class="issue-summary">
-            共 {{ linkIssues.length }} 处问题，涉及 {{ groupedIssues.length }} 篇文章；点击文章标题跳转编辑
+            共 {{ linkIssues.length }} 处问题，涉及
+            {{ groupedIssues.length }} 篇文章；点击文章标题跳转编辑
           </div>
           <div v-for="g in groupedIssues" :key="g.postId" class="issue-group panel">
             <div class="issue-post" @click="openEditor(g.postId)">
@@ -414,7 +450,11 @@ onMounted(() => {
               <span class="issue-count">{{ g.items.length }}</span>
             </div>
             <div v-for="(it, i) in g.items" :key="i" class="issue-item">
-              <el-tag size="small" :type="it.type === 'image' ? 'warning' : 'danger'" effect="light">
+              <el-tag
+                size="small"
+                :type="it.type === 'image' ? 'warning' : 'danger'"
+                effect="light"
+              >
                 {{ it.type === 'image' ? '图片' : '链接' }}
               </el-tag>
               <span class="issue-target" :title="it.target">{{ it.target }}</span>
@@ -452,7 +492,11 @@ onMounted(() => {
           <el-input v-model="form.title" placeholder="文章标题" maxlength="120" />
         </el-form-item>
         <el-form-item label="文件名">
-          <el-input v-model="form.fileName" placeholder="文件名（.md / .mdx）" @input="fileNameEdited = true">
+          <el-input
+            v-model="form.fileName"
+            placeholder="文件名（.md / .mdx）"
+            @input="fileNameEdited = true"
+          >
             <template #append>.md</template>
           </el-input>
         </el-form-item>
@@ -466,11 +510,21 @@ onMounted(() => {
             placeholder="输入后回车创建标签"
             style="width: 100%"
           >
-            <el-option v-for="t in posts.tagCounts.slice(0, 30)" :key="t.name" :label="t.name" :value="t.name" />
+            <el-option
+              v-for="t in posts.tagCounts.slice(0, 30)"
+              :key="t.name"
+              :label="t.name"
+              :value="t.name"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="文章摘要（可选）" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="2"
+            placeholder="文章摘要（可选）"
+          />
         </el-form-item>
         <el-form-item label="草稿">
           <el-switch v-model="form.draft" />
@@ -530,7 +584,9 @@ onMounted(() => {
   gap: 16px;
   padding: 14px 18px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
   /* 大列表渲染优化：视口外跳过渲染（高度按经验值参与滚动估算） */
   content-visibility: auto;
   contain-intrinsic-size: auto 96px;
@@ -638,7 +694,9 @@ onMounted(() => {
 }
 .bulk-fade-enter-active,
 .bulk-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 .bulk-fade-enter-from,
 .bulk-fade-leave-to {

@@ -32,7 +32,10 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const src = token.attrGet('src')
   if (src && /^\/[^/]/.test(src)) {
-    token.attrSet('src', `media://local/${src.slice(1).split('/').map(encodeURIComponent).join('/')}`)
+    token.attrSet(
+      'src',
+      `media://local/${src.slice(1).split('/').map(encodeURIComponent).join('/')}`
+    )
   }
   return defaultImage(tokens, idx, options, env, self)
 }
@@ -75,5 +78,7 @@ function onPreviewClick(e: MouseEvent): void {
 </script>
 
 <template>
+  <!-- 本地单机应用：渲染自身博客的 markdown（含主题支持的原文 HTML），无第三方不可信输入 -->
+  <!-- eslint-disable-next-line vue/no-v-html -->
   <div class="md-preview" @click="onPreviewClick" v-html="html"></div>
 </template>

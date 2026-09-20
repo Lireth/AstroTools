@@ -29,11 +29,11 @@ const yamlOn = computed({
       return
     }
     if (!editor.yamlDirty || editor.exitYamlMode()) return
-    void ElMessageBox.confirm(
-      'YAML 内容解析失败，放弃这些修改并返回表单模式？',
-      '提示',
-      { type: 'warning', confirmButtonText: '放弃修改', cancelButtonText: '留在 YAML 模式' }
-    )
+    void ElMessageBox.confirm('YAML 内容解析失败，放弃这些修改并返回表单模式？', '提示', {
+      type: 'warning',
+      confirmButtonText: '放弃修改',
+      cancelButtonText: '留在 YAML 模式'
+    })
       .then(() => editor.discardYaml())
       .catch(() => {
         /* 保持 YAML 模式 */
@@ -155,7 +155,12 @@ onBeforeUnmount(() => {
       />
       <span class="word-count">{{ editor.wordCount }} 字</span>
       <el-tooltip content="切换右侧预览" placement="top">
-        <el-button :icon="View" circle :class="{ active: previewVisible }" @click="previewVisible = !previewVisible" />
+        <el-button
+          :icon="View"
+          circle
+          :class="{ active: previewVisible }"
+          @click="previewVisible = !previewVisible"
+        />
       </el-tooltip>
       <el-button
         type="primary"
@@ -170,7 +175,9 @@ onBeforeUnmount(() => {
       <el-collapse-item name="meta">
         <template #title>
           <span class="meta-title">文章元数据（frontmatter）</span>
-          <span v-if="editor.detail" class="meta-file">{{ editor.detail.collection }} / {{ editor.fileName }}</span>
+          <span v-if="editor.detail" class="meta-file"
+            >{{ editor.detail.collection }} / {{ editor.fileName }}</span
+          >
           <span class="yaml-switch-wrap" title="以 YAML 源码方式编辑 frontmatter" @click.stop>
             <el-switch
               v-model="yamlOn"
@@ -193,76 +200,93 @@ onBeforeUnmount(() => {
             :description="editor.yamlError ?? ''"
           />
           <div v-if="editor.yamlMode" class="yaml-editor-wrap">
-            <CodeEditor v-model="editor.yamlText" language="yaml" :dark="settings.isDark" :font-size="settings.editorFontSize" />
+            <CodeEditor
+              v-model="editor.yamlText"
+              language="yaml"
+              :dark="settings.isDark"
+              :font-size="settings.editorFontSize"
+            />
           </div>
           <div v-show="!editor.yamlMode" class="meta-grid">
-          <div class="meta-item">
-            <label>发布日期</label>
-            <el-date-picker
-              v-model="editor.dateStr"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="选择日期"
-              style="width: 100%"
-              @change="editor.markTouched('date')"
-            />
-          </div>
-          <div class="meta-item">
-            <label>标签</label>
-            <el-select
-              v-model="editor.tags"
-              multiple
-              filterable
-              allow-create
-              default-first-option
-              placeholder="输入后回车创建"
-              style="width: 100%"
-              @change="editor.markTouched('tags')"
-            >
-              <el-option v-for="t in posts.tagCounts.slice(0, 30)" :key="t.name" :label="t.name" :value="t.name" />
-            </el-select>
-          </div>
-          <div class="meta-item draft-item">
-            <label>草稿</label>
-            <el-switch v-model="editor.draft" @change="editor.markTouched('draft')" />
-          </div>
-          <div class="meta-item span-2">
-            <label>描述</label>
-            <el-input
-              v-model="editor.description"
-              type="textarea"
-              :rows="2"
-              placeholder="文章摘要（可选）"
-              @input="editor.markTouched('description')"
-            />
-          </div>
-          <div class="meta-item span-2 rename-row">
-            <label>文件名</label>
-            <div class="rename-control">
-              <el-input v-model="editor.fileName" placeholder="文件名" />
-              <el-button size="default" @click="doRename">重命名</el-button>
+            <div class="meta-item">
+              <label>发布日期</label>
+              <el-date-picker
+                v-model="editor.dateStr"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="选择日期"
+                style="width: 100%"
+                @change="editor.markTouched('date')"
+              />
             </div>
-          </div>
-
-          <div class="meta-item span-2">
-            <label>其他字段</label>
-            <div class="extras">
-              <div v-for="(f, i) in editor.extras" :key="i" class="extra-row">
-                <el-input v-model="f.key" class="extra-key" placeholder="字段名" @input="editor.markDirty()" />
-                <el-input
-                  v-model="f.value"
-                  type="textarea"
-                  :rows="1"
-                  :autosize="{ minRows: 1, maxRows: 6 }"
-                  class="extra-value"
-                  placeholder="值（对象/数组用 JSON 表示）"
-                  @input="editor.markDirty()"
+            <div class="meta-item">
+              <label>标签</label>
+              <el-select
+                v-model="editor.tags"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                placeholder="输入后回车创建"
+                style="width: 100%"
+                @change="editor.markTouched('tags')"
+              >
+                <el-option
+                  v-for="t in posts.tagCounts.slice(0, 30)"
+                  :key="t.name"
+                  :label="t.name"
+                  :value="t.name"
                 />
-                <el-button size="default" text type="danger" @click="removeExtra(i)">移除</el-button>
-              </div>
-              <el-button size="small" :icon="Plus" @click="addExtra">添加字段</el-button>
+              </el-select>
             </div>
-          </div>
+            <div class="meta-item draft-item">
+              <label>草稿</label>
+              <el-switch v-model="editor.draft" @change="editor.markTouched('draft')" />
+            </div>
+            <div class="meta-item span-2">
+              <label>描述</label>
+              <el-input
+                v-model="editor.description"
+                type="textarea"
+                :rows="2"
+                placeholder="文章摘要（可选）"
+                @input="editor.markTouched('description')"
+              />
+            </div>
+            <div class="meta-item span-2 rename-row">
+              <label>文件名</label>
+              <div class="rename-control">
+                <el-input v-model="editor.fileName" placeholder="文件名" />
+                <el-button size="default" @click="doRename">重命名</el-button>
+              </div>
+            </div>
+
+            <div class="meta-item span-2">
+              <label>其他字段</label>
+              <div class="extras">
+                <div v-for="(f, i) in editor.extras" :key="i" class="extra-row">
+                  <el-input
+                    v-model="f.key"
+                    class="extra-key"
+                    placeholder="字段名"
+                    @input="editor.markDirty()"
+                  />
+                  <el-input
+                    v-model="f.value"
+                    type="textarea"
+                    :rows="1"
+                    :autosize="{ minRows: 1, maxRows: 6 }"
+                    class="extra-value"
+                    placeholder="值（对象/数组用 JSON 表示）"
+                    @input="editor.markDirty()"
+                  />
+                  <el-button size="default" text type="danger" @click="removeExtra(i)"
+                    >移除</el-button
+                  >
+                </div>
+                <el-button size="small" :icon="Plus" @click="addExtra">添加字段</el-button>
+              </div>
+            </div>
           </div>
         </div>
       </el-collapse-item>

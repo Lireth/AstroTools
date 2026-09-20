@@ -41,7 +41,8 @@ html.dark {
   --border-soft: #2e3140;
   --text-main: #e5e7f0;
   --text-sub: #9aa0b0;
-  --thumb-checker: conic-gradient(#262936 25%, #1f212b 0 50%, #262936 0 75%, #1f212b 0) 0 0/16px 16px;
+  --thumb-checker: conic-gradient(#262936 25%, #1f212b 0 50%, #262936 0 75%, #1f212b 0) 0 0/16px
+    16px;
   --el-color-primary-light-3: #6349ca;
   --el-color-primary-light-5: #5640b0;
   --el-color-primary-light-7: #44347f;

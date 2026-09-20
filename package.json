@@ -15,7 +15,9 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
-    "test:e2e": "node tests/e2e/app.e2e.mjs"
+    "test:e2e": "node tests/e2e/app.e2e.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.0",
@@ -42,9 +44,14 @@
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.10.0",
     "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.9.0",
     "electron": "^37.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^3.1.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-vue": "^10.11.0",
+    "prettier": "^3.9.8",
     "puppeteer-core": "^25.11.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",

@@ -121,7 +121,10 @@ export interface ParsedPost {
 }
 
 /** 解析单个 markdown 文件为文章元数据 */
-export async function parsePostFile(absPath: string, projectRoot: string): Promise<ParsedPost | null> {
+export async function parsePostFile(
+  absPath: string,
+  projectRoot: string
+): Promise<ParsedPost | null> {
   let raw: string
   try {
     raw = await readFile(absPath, 'utf-8')
@@ -139,15 +142,14 @@ export async function parsePostFile(absPath: string, projectRoot: string): Promi
   let draft = false
   if (draftKey !== undefined) {
     draft =
-      draftKey.toLowerCase() === 'published'
-        ? data[draftKey] === false
-        : data[draftKey] === true
+      draftKey.toLowerCase() === 'published' ? data[draftKey] === false : data[draftKey] === true
   }
 
   const titleKey = pickKey(data, TITLE_KEYS)
   const rawTitle = titleKey && typeof data[titleKey] === 'string' ? (data[titleKey] as string) : ''
   const headingMatch = parsed.content.match(/^#\s+(.+)$/m)
-  const title = rawTitle || (headingMatch ? headingMatch[1].trim() : fileName.replace(MD_EXT_RE, ''))
+  const title =
+    rawTitle || (headingMatch ? headingMatch[1].trim() : fileName.replace(MD_EXT_RE, ''))
 
   const tagsKey = pickKey(data, TAGS_KEYS)
   const tags = tagsKey ? normalizeTags(data[tagsKey]) : []
@@ -339,7 +341,11 @@ export async function savePost(root: string, input: SavePostInput): Promise<void
 }
 
 /** 重命名文章文件 */
-export async function renamePost(root: string, id: string, newFileName: string): Promise<{ id: string }> {
+export async function renamePost(
+  root: string,
+  id: string,
+  newFileName: string
+): Promise<{ id: string }> {
   const abs = resolveWithin(root, id)
   if (!(await pathExists(abs))) throw new Error(`文章不存在: ${id}`)
   let fileName = sanitizeFileName(newFileName)
@@ -387,7 +393,11 @@ export async function bulkUpdatePosts(
 }
 
 /** 对单篇文章应用 patch。成功返回 null，失败/跳过返回原因。 */
-async function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch): Promise<string | null> {
+async function applyBulkPatch(
+  root: string,
+  id: string,
+  patch: BulkUpdatePatch
+): Promise<string | null> {
   const abs = resolveWithin(root, id)
   if (!isMarkdownFile(abs)) return '仅支持 .md / .mdx 文章文件'
   if (!(await pathExists(abs))) return '文件不存在（可能已被移动或删除）'
@@ -486,7 +496,15 @@ export async function buildFrontmatterTemplate(
   const draftKey = keys.find((k) => DRAFT_KEYS.includes(k.toLowerCase()))
   const descriptionKey = keys.find((k) => DESCRIPTION_KEYS.includes(k.toLowerCase()))
 
-  const template: FrontmatterTemplate = { keys, sample, dateKey, titleKey, tagsKey, draftKey, descriptionKey }
+  const template: FrontmatterTemplate = {
+    keys,
+    sample,
+    dateKey,
+    titleKey,
+    tagsKey,
+    draftKey,
+    descriptionKey
+  }
   templateCache.set(cacheKey, template)
   return template
 }

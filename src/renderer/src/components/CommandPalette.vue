@@ -148,7 +148,10 @@ function onInputKeydown(e: KeyboardEvent): void {
               :class="{ active: i === activeIndex }"
               type="button"
               @mouseenter="activeIndex = i"
-              @click="row.enter(); close()"
+              @click="
+                row.enter()
+                close()
+              "
             >
               <span class="palette-label">{{ row.label }}</span>
               <span class="palette-hint" :class="row.kind">{{ row.hint }}</span>

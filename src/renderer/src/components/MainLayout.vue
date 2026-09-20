@@ -3,7 +3,19 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ThemeMode } from '@shared/types'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, Setting, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import {
+  DataAnalysis,
+  Document,
+  Picture,
+  Promotion,
+  Refresh,
+  Right,
+  Search,
+  Setting,
+  SwitchButton,
+  VideoPlay,
+  VideoPause
+} from '@element-plus/icons-vue'
 import CommandPalette from './CommandPalette.vue'
 import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
@@ -165,8 +177,12 @@ onBeforeUnmount(() => {
           project.info.site
         }}</a>
         <div class="project-stats">
-          <span><b>{{ project.info.totalPosts }}</b> 篇文章</span>
-          <span class="draft-num"><b>{{ project.info.draftCount }}</b> 篇草稿</span>
+          <span
+            ><b>{{ project.info.totalPosts }}</b> 篇文章</span
+          >
+          <span class="draft-num"
+            ><b>{{ project.info.draftCount }}</b> 篇草稿</span
+          >
         </div>
         <div class="project-actions">
           <el-button size="small" :icon="Refresh" @click="refreshProject">刷新</el-button>
@@ -244,7 +260,11 @@ onBeforeUnmount(() => {
         <el-button
           size="small"
           :type="dev.state.status === 'running' ? 'danger' : 'primary'"
-          :icon="dev.state.status === 'running' || dev.state.status === 'starting' ? VideoPause : VideoPlay"
+          :icon="
+            dev.state.status === 'running' || dev.state.status === 'starting'
+              ? VideoPause
+              : VideoPlay
+          "
           :disabled="dev.state.status === 'stopping'"
           @click="toggleDev"
         >
@@ -267,10 +287,7 @@ onBeforeUnmount(() => {
           <span class="dev-dot"></span>
           构建：{{ buildStatusText }}
         </div>
-        <el-button
-          size="small"
-          :loading="build.state.status === 'building'"
-          @click="startBuild"
+        <el-button size="small" :loading="build.state.status === 'building'" @click="startBuild"
           >构建</el-button
         >
       </header>
@@ -297,7 +314,10 @@ onBeforeUnmount(() => {
     <el-dialog v-model="settingsOpen" title="设置" width="420px">
       <el-form label-width="88px" label-position="left">
         <el-form-item label="主题">
-          <el-radio-group :model-value="settings.theme" @update:model-value="settings.setTheme($event as ThemeMode)">
+          <el-radio-group
+            :model-value="settings.theme"
+            @update:model-value="settings.setTheme($event as ThemeMode)"
+          >
             <el-radio-button value="light">浅色</el-radio-button>
             <el-radio-button value="dark">深色</el-radio-button>
             <el-radio-button value="system">跟随系统</el-radio-button>

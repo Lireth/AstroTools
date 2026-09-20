@@ -106,7 +106,10 @@ export class DevServerManager {
           status: code === 0 ? 'idle' : 'error',
           pid: undefined,
           url: undefined,
-          message: code === 0 ? '开发服务器已退出' : `开发服务器异常退出（退出码 ${code}）\n${log.slice(-800)}`
+          message:
+            code === 0
+              ? '开发服务器已退出'
+              : `开发服务器异常退出（退出码 ${code}）\n${log.slice(-800)}`
         })
       }
     })

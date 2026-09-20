@@ -11,7 +11,12 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', redirect: '/posts' },
-    { path: '/welcome', name: 'welcome', component: WelcomeView, meta: { bare: true, title: '选择博客项目' } },
+    {
+      path: '/welcome',
+      name: 'welcome',
+      component: WelcomeView,
+      meta: { bare: true, title: '选择博客项目' }
+    },
     { path: '/posts', name: 'posts', component: PostListView, meta: { title: '文章管理' } },
     { path: '/editor/:id', name: 'editor', component: PostEditorView, meta: { title: '编辑文章' } },
     { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '统计' } },

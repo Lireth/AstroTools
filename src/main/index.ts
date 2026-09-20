@@ -86,7 +86,10 @@ function registerMediaProtocol(): void {
 
       const res = await net.fetch(pathToFileURL(abs).toString())
       const headers = new Headers(res.headers)
-      headers.set('Content-Type', MEDIA_MIME[extname(abs).toLowerCase()] ?? 'application/octet-stream')
+      headers.set(
+        'Content-Type',
+        MEDIA_MIME[extname(abs).toLowerCase()] ?? 'application/octet-stream'
+      )
       return new Response(res.body, { status: res.status, headers })
     } catch (err) {
       return new Response(String(err), { status: 500 })

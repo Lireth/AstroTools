@@ -114,7 +114,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="container" class="code-editor" :style="fontSize ? { fontSize: `${fontSize}px` } : undefined"></div>
+  <div
+    ref="container"
+    class="code-editor"
+    :style="fontSize ? { fontSize: `${fontSize}px` } : undefined"
+  ></div>
 </template>
 
 <style scoped>

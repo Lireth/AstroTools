@@ -37,7 +37,9 @@ async function importImages(): Promise<void> {
   try {
     const results = await window.api.importImages()
     if (!results.length) return
-    ElMessage.success(results.length > 1 ? `已导入 ${results.length} 张图片` : `已导入：${results[0]?.image.name}`)
+    ElMessage.success(
+      results.length > 1 ? `已导入 ${results.length} 张图片` : `已导入：${results[0]?.image.name}`
+    )
     await load()
   } catch (err) {
     ElMessage.error((err as Error).message)
@@ -130,7 +132,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="images-page" v-loading="loading">
+  <div v-loading="loading" class="images-page">
     <div class="toolbar">
       <span class="hint">
         扫描 {{ project.info?.name ?? '项目' }} 的 public/ 目录，共 {{ images.length }} 张图片
@@ -161,7 +163,9 @@ onMounted(() => {
         <div class="image-info">
           <div class="image-name" :title="img.relPath">
             {{ img.name }}
-            <el-tag v-if="unusedSet.has(img.relPath)" size="small" type="info" effect="plain">未引用</el-tag>
+            <el-tag v-if="unusedSet.has(img.relPath)" size="small" type="info" effect="plain"
+              >未引用</el-tag
+            >
           </div>
           <div class="image-meta">{{ formatSize(img.size) }} · {{ img.ext.toUpperCase() }}</div>
         </div>

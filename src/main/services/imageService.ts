@@ -3,7 +3,17 @@ import { basename, extname, join, resolve, sep } from 'node:path'
 import type { ImageItem, ImportImageResult } from '../../shared/types'
 import { pathExists, sanitizeFileName } from './paths'
 
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.ico', '.bmp'])
+const IMAGE_EXTS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+  '.avif',
+  '.ico',
+  '.bmp'
+])
 /** 剪贴板/拖入图片无文件名扩展名时，按 MIME 类型推断扩展名 */
 const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -15,9 +25,25 @@ const MIME_EXT: Record<string, string> = {
 }
 /** 查找未引用图片时扫描的源码文件类型 */
 const REFERENCE_TEXT_EXTS = new Set([
-  '.md', '.mdx', '.astro', '.ts', '.mts', '.js', '.mjs', '.css', '.scss', '.vue', '.json', '.html'
+  '.md',
+  '.mdx',
+  '.astro',
+  '.ts',
+  '.mts',
+  '.js',
+  '.mjs',
+  '.css',
+  '.scss',
+  '.vue',
+  '.json',
+  '.html'
 ])
-const ASTRO_CONFIG_NAMES = ['astro.config.ts', 'astro.config.mts', 'astro.config.mjs', 'astro.config.js']
+const ASTRO_CONFIG_NAMES = [
+  'astro.config.ts',
+  'astro.config.mts',
+  'astro.config.mjs',
+  'astro.config.js'
+]
 /** 粘贴/拖入保存的单张图片大小上限（20MB），防止超大 IPC 载荷耗尽内存/磁盘 */
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024
 
@@ -76,7 +102,11 @@ async function toImageItem(root: string, absPath: string): Promise<ImageItem> {
 }
 
 /** 在 targetDir 内为 stem+ext 找一个不重名的目标路径（重名追加序号） */
-async function resolveNewImageTarget(targetDir: string, stem: string, ext: string): Promise<string> {
+async function resolveNewImageTarget(
+  targetDir: string,
+  stem: string,
+  ext: string
+): Promise<string> {
   let name = stem + ext
   let counter = 1
   while (await pathExists(join(targetDir, name))) {
@@ -88,7 +118,8 @@ async function resolveNewImageTarget(targetDir: string, stem: string, ext: strin
 
 /** 将本机图片复制进 public/images/（重名自动追加序号） */
 export async function importImage(root: string, srcPath: string): Promise<ImportImageResult> {
-  if (!isImageFile(srcPath)) throw new Error('仅支持常见图片格式（png/jpg/gif/webp/svg/avif/ico/bmp）')
+  if (!isImageFile(srcPath))
+    throw new Error('仅支持常见图片格式（png/jpg/gif/webp/svg/avif/ico/bmp）')
   if (!(await pathExists(srcPath))) throw new Error('所选图片文件不存在')
 
   const targetDir = join(publicDir(root), 'images')
