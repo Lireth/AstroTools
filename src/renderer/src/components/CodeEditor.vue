@@ -1,19 +1,51 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
+import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { languages } from '@codemirror/language-data'
+import { oneDark } from '@codemirror/theme-one-dark'
 
-const props = defineProps<{ modelValue: string; readOnly?: boolean }>()
+const props = defineProps<{
+  modelValue: string
+  readOnly?: boolean
+  language?: 'markdown' | 'yaml'
+  /** 粘贴/拖入图片时被调用：保存后返回 markdown 引用文本，返回 null 表示放弃 */
+  imageHandler?: (file: File) => Promise<string | null>
+  /** 暗色主题（跟随应用设置） */
+  dark?: boolean
+  /** 编辑器字号（px） */
+  fontSize?: number
+}>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'save'): void }>()
 
 const container = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 // 外部同步（加载文章）时的 dispatch 不应触发 dirty 标记
 let syncing = false
+// 暗色主题用 Compartment 动态切换，无需重建编辑器
+const themeCompartment = new Compartment()
+
+function languageExtension(): Extension {
+  return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
+}
+
+/** 粘贴/拖入图片：交给 imageHandler 保存并把 markdown 引用插入光标处 */
+async function transferImage(event: ClipboardEvent | DragEvent, v: EditorView): Promise<void> {
+  const dt = 'clipboardData' in event ? event.clipboardData : event.dataTransfer
+  if (!dt || !props.imageHandler) return
+  const file = [...dt.files].find((f) => f.type.startsWith('image/'))
+  if (!file) return
+  event.preventDefault()
+  const markdown = await props.imageHandler(file)
+  if (markdown) {
+    v.dispatch(v.state.replaceSelection(markdown))
+    v.focus()
+  }
+}
 
 onMounted(() => {
   if (!container.value) return
@@ -22,7 +54,8 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         basicSetup,
-        markdown({ codeLanguages: languages }),
+        themeCompartment.of(props.dark ? oneDark : []),
+        languageExtension(),
         EditorView.lineWrapping,
         EditorState.readOnly.of(props.readOnly ?? false),
         keymap.of([
@@ -36,6 +69,16 @@ onMounted(() => {
           }
         ]),
         keymap.of([...defaultKeymap, indentWithTab]),
+        EditorView.domEventHandlers({
+          paste: (event, v) => {
+            void transferImage(event, v)
+            return false
+          },
+          drop: (event, v) => {
+            void transferImage(event, v)
+            return false
+          }
+        }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !syncing) {
             emit('update:modelValue', update.state.doc.toString())
@@ -46,6 +89,13 @@ onMounted(() => {
     parent: container.value
   })
 })
+
+watch(
+  () => props.dark,
+  (dark) => {
+    view?.dispatch({ effects: themeCompartment.reconfigure(dark ? oneDark : []) })
+  }
+)
 
 watch(
   () => props.modelValue,
@@ -72,7 +122,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="container" class="code-editor"></div>
+  <div ref="container" class="code-editor" :style="fontSize ? { fontSize: `${fontSize}px` } : undefined"></div>
 </template>
 
 <style scoped>

@@ -1,17 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { ThemeMode } from '@shared/types'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Document, Picture, Promotion, Refresh, Right, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, Setting, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import CommandPalette from './CommandPalette.vue'
 import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
+import { useEditorStore } from '../stores/editor'
 import { useDevServerStore } from '../stores/devServer'
+import { useBuildStore } from '../stores/build'
+import { useSettingsStore } from '../stores/settings'
 
 const route = useRoute()
 const router = useRouter()
 const project = useProjectStore()
 const posts = usePostsStore()
+const editor = useEditorStore()
 const dev = useDevServerStore()
+const build = useBuildStore()
+const settings = useSettingsStore()
+
+const paletteOpen = ref(false)
+const buildLogOpen = ref(false)
+const settingsOpen = ref(false)
+
+function onGlobalKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+    paletteOpen.value = true
+  }
+}
 
 const collections = computed(() => project.info?.collections ?? [])
 const collectionModel = computed({
@@ -34,8 +53,30 @@ const devStatusText = computed(
     })[dev.state.status]
 )
 
+const buildStatusText = computed(
+  () =>
+    ({
+      idle: '未构建',
+      building: '构建中…',
+      done: build.state.durationMs
+        ? `完成（${Math.round(build.state.durationMs / 1000)}s）`
+        : '完成',
+      error: '失败'
+    })[build.state.status]
+)
+
+async function startBuild(): Promise<void> {
+  try {
+    await build.start()
+    buildLogOpen.value = true
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
+
 const navItems = [
   { path: '/posts', label: '文章管理', icon: Document },
+  { path: '/dashboard', label: '统计', icon: DataAnalysis },
   { path: '/images', label: '图片资源', icon: Picture },
   { path: '/preview', label: '站点预览', icon: Promotion }
 ]
@@ -79,18 +120,27 @@ async function toggleDev(): Promise<void> {
   }
 }
 
-// 项目切换时清空筛选并重新加载文章
+// 项目切换时：清空编辑器状态（防止旧项目文章内容残留、误存到新项目），
+// 清空筛选并重新加载文章
 watch(
   () => project.info?.path,
   () => {
+    editor.reset()
     posts.clearFilters()
     void posts.load(true)
   }
 )
 
 onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
   dev.init()
+  build.init()
+  posts.initExternalSync()
   if (project.info) void posts.load(true)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 
@@ -152,6 +202,11 @@ onMounted(() => {
       </div>
 
       <nav class="nav">
+        <button class="nav-item" type="button" @click="paletteOpen = true">
+          <el-icon><Search /></el-icon>
+          快速打开
+          <span class="nav-shortcut">Ctrl+P</span>
+        </button>
         <button
           v-for="item in navItems"
           :key="item.path"
@@ -167,6 +222,10 @@ onMounted(() => {
         <button class="nav-item" type="button" @click="router.push('/welcome')">
           <el-icon><SwitchButton /></el-icon>
           切换项目
+        </button>
+        <button class="nav-item" type="button" @click="settingsOpen = true">
+          <el-icon><Setting /></el-icon>
+          设置
         </button>
       </nav>
     </aside>
@@ -195,11 +254,70 @@ onMounted(() => {
           @click="router.push('/preview')"
           >打开预览</el-button
         >
+        <div
+          v-if="build.state.status !== 'idle'"
+          class="dev-pill build-pill"
+          :class="`build-${build.state.status}`"
+          title="点击查看构建日志"
+          @click="buildLogOpen = true"
+        >
+          <span class="dev-dot"></span>
+          构建：{{ buildStatusText }}
+        </div>
+        <el-button
+          size="small"
+          :loading="build.state.status === 'building'"
+          @click="startBuild"
+          >构建</el-button
+        >
       </header>
       <main class="view">
         <router-view />
       </main>
     </div>
+
+    <el-dialog v-model="buildLogOpen" title="生产构建（astro build）" width="620px">
+      <pre class="build-log">{{ build.state.message || '尚无构建日志' }}</pre>
+      <template #footer>
+        <el-button
+          v-if="build.state.status === 'building'"
+          size="small"
+          type="danger"
+          plain
+          @click="build.stop()"
+          >取消构建</el-button
+        >
+        <el-button size="small" @click="buildLogOpen = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="settingsOpen" title="设置" width="420px">
+      <el-form label-width="88px" label-position="left">
+        <el-form-item label="主题">
+          <el-radio-group :model-value="settings.theme" @update:model-value="settings.setTheme($event as ThemeMode)">
+            <el-radio-button value="light">浅色</el-radio-button>
+            <el-radio-button value="dark">深色</el-radio-button>
+            <el-radio-button value="system">跟随系统</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="编辑器字号">
+          <el-slider
+            :model-value="settings.editorFontSize"
+            :min="12"
+            :max="20"
+            :step="1"
+            show-input
+            style="width: 100%"
+            @update:model-value="settings.setEditorFontSize($event as number)"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button type="primary" @click="settingsOpen = false">完成</el-button>
+      </template>
+    </el-dialog>
+
+    <CommandPalette v-model="paletteOpen" />
   </div>
 </template>
 
@@ -320,7 +438,7 @@ onMounted(() => {
 }
 .tag-chip {
   border: 1px solid var(--border-soft);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 999px;
   font-size: 12px;
   padding: 3px 10px;
@@ -378,6 +496,15 @@ onMounted(() => {
   background: var(--border-soft);
   margin: 6px 0;
 }
+.nav-shortcut {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-sub);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: var(--bg-card);
+}
 
 .content {
   flex: 1;
@@ -411,7 +538,7 @@ onMounted(() => {
   gap: 6px;
   font-size: 12px;
   color: var(--text-sub);
-  background: #f6f7fb;
+  background: var(--bg-soft);
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-soft);
@@ -433,6 +560,32 @@ onMounted(() => {
 }
 .dev-error .dev-dot {
   background: #ef4444;
+}
+.build-pill {
+  cursor: pointer;
+}
+.build-building .dev-dot {
+  background: #f59e0b;
+  animation: blink 1s infinite;
+}
+.build-done .dev-dot {
+  background: #10b981;
+}
+.build-error .dev-dot {
+  background: #ef4444;
+}
+.build-log {
+  margin: 0;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--text-main);
+  background: var(--bg-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow: auto;
 }
 @keyframes blink {
   50% {

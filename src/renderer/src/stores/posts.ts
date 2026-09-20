@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { FrontmatterTemplate, NewPostInput, PostMeta } from '@shared/types'
+import type {
+  BulkUpdatePatch,
+  BulkUpdateResult,
+  FrontmatterTemplate,
+  GitFileStatus,
+  NewPostInput,
+  PostMeta
+} from '@shared/types'
 
 export interface CreatePostDialogInput {
   collection: string
@@ -15,6 +22,39 @@ export const usePostsStore = defineStore('posts', () => {
   const posts = ref<PostMeta[]>([])
   const loading = ref(false)
   const loaded = ref(false)
+
+  // 外部修改推送（主进程文件监听）：git pull / 其他编辑器改动文章后自动更新列表
+  let unsubscribeExternal: (() => void) | null = null
+  function initExternalSync(): void {
+    if (unsubscribeExternal) return
+    unsubscribeExternal = window.api.onPostsChanged((list) => {
+      posts.value = list
+      loaded.value = true
+      loading.value = false
+    })
+  }
+
+  // ---- git 集成 ----
+  const gitFiles = ref<Record<string, GitFileStatus>>({})
+  const isGitRepo = ref(false)
+
+  /** 读取文章文件的 git 状态（非 git 仓库时静默置空） */
+  async function loadGitStatus(): Promise<void> {
+    try {
+      const res = await window.api.getGitStatus()
+      isGitRepo.value = !!res
+      gitFiles.value = res?.files ?? {}
+    } catch {
+      isGitRepo.value = false
+      gitFiles.value = {}
+    }
+  }
+
+  /** 提交指定文章文件后刷新 git 状态 */
+  async function commitFiles(ids: string[], message: string): Promise<void> {
+    await window.api.commitPosts(ids, message)
+    await loadGitStatus()
+  }
 
   // 筛选状态（侧边栏与列表页共享）
   const query = ref('')
@@ -33,12 +73,13 @@ export const usePostsStore = defineStore('posts', () => {
   })
 
   const filtered = computed(() => {
-    const q = query.value.trim().toLowerCase()
+    // 多词 AND：所有关键词都命中才算匹配（searchText 含标题/正文/标签/描述）
+    const terms = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
     return posts.value.filter((p) => {
       if (collection.value && p.collection !== collection.value) return false
       if (tag.value && !p.tags.includes(tag.value)) return false
       if (draftOnly.value && !p.draft) return false
-      if (q && !p.searchText.includes(q)) return false
+      if (terms.length && !terms.every((t) => p.searchText.includes(t))) return false
       return true
     })
   })
@@ -121,6 +162,28 @@ export const usePostsStore = defineStore('posts', () => {
     invalidate()
   }
 
+  /** 批量更新（草稿状态/标签追加），返回逐篇结果，由调用方汇总提示 */
+  async function bulkUpdate(ids: string[], patch: BulkUpdatePatch): Promise<BulkUpdateResult[]> {
+    const results = await window.api.bulkUpdatePosts(ids, patch)
+    invalidate()
+    return results
+  }
+
+  /** 批量删除：循环调用现有删除（走系统回收站），逐篇收集结果 */
+  async function bulkRemove(ids: string[]): Promise<BulkUpdateResult[]> {
+    const results: BulkUpdateResult[] = []
+    for (const id of ids) {
+      try {
+        await window.api.deletePost(id)
+        results.push({ id, ok: true })
+      } catch (err) {
+        results.push({ id, ok: false, error: (err as Error).message })
+      }
+    }
+    invalidate()
+    return results
+  }
+
   return {
     posts,
     loading,
@@ -134,8 +197,15 @@ export const usePostsStore = defineStore('posts', () => {
     load,
     reload,
     invalidate,
+    initExternalSync,
+    gitFiles,
+    isGitRepo,
+    loadGitStatus,
+    commitFiles,
     clearFilters,
     createFromDialog,
-    remove
+    remove,
+    bulkUpdate,
+    bulkRemove
   }
 })

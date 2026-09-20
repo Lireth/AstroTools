@@ -1,9 +1,21 @@
+import { watch, type FSWatcher } from 'node:fs'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
-import { discoverCollections, readProjectInfo, validateAstroProject } from '../services/astroProject'
-import { DevServerManager } from '../services/devServer'
-import { importImage, listImages } from '../services/imageService'
 import {
+  contentConfigCandidates,
+  discoverCollections,
+  readProjectInfo,
+  validateAstroProject
+} from '../services/astroProject'
+import { BuildRunner } from '../services/buildRunner'
+import { DevServerManager } from '../services/devServer'
+import { deleteImage, findUnusedImages, importImage, listImages, saveImage } from '../services/imageService'
+import { pathExists } from '../services/paths'
+import { gitCommit, gitStatus } from '../services/gitService'
+import { addRecentProject, loadSettings, removeRecentProject, updateAppPreferences } from '../services/settings'
+import {
+  bulkUpdatePosts,
   buildFrontmatterTemplate,
+  clearPostCache,
   createPost,
   deletePost,
   readPost,
@@ -11,7 +23,7 @@ import {
   savePost,
   scanPosts
 } from '../services/postService'
-import { addRecentProject, loadSettings, removeRecentProject } from '../services/settings'
+import { checkLinks } from '../services/linkChecker'
 import { getCurrentProject, getCurrentRoot, getMainWindow, setCurrentProject } from '../state'
 
 function requireRoot(): string {
@@ -30,16 +42,85 @@ const IMAGE_FILTER = {
 }
 
 let devManager: DevServerManager | null = null
+let buildRunner: BuildRunner | null = null
+
+// ---- 文章文件监听（外部修改自动刷新列表） ----
+let postsWatchers: FSWatcher[] = []
+let rescanTimer: NodeJS.Timeout | null = null
+let watchingRoot: string | null = null
+
+function stopPostsWatch(): void {
+  if (rescanTimer) {
+    clearTimeout(rescanTimer)
+    rescanTimer = null
+  }
+  for (const w of postsWatchers) {
+    try {
+      w.close()
+    } catch {
+      // 忽略已关闭的 watcher
+    }
+  }
+  postsWatchers = []
+  watchingRoot = null
+}
+
+async function startPostsWatch(root: string): Promise<void> {
+  stopPostsWatch()
+  watchingRoot = root
+
+  // 防抖重扫：git pull / 其他编辑器的连续改动合并为一次增量扫描并推送
+  const rescanAndPush = async (): Promise<void> => {
+    if (watchingRoot !== root) return
+    try {
+      const collections = await discoverCollections(root, { force: true })
+      const posts = await scanPosts(root, collections)
+      getMainWindow()?.webContents.send('posts:changed', posts)
+    } catch {
+      // 项目可能在切换中，忽略
+    }
+  }
+  const schedule = (): void => {
+    if (rescanTimer) clearTimeout(rescanTimer)
+    rescanTimer = setTimeout(() => {
+      rescanTimer = null
+      void rescanAndPush()
+    }, 500)
+  }
+
+  const targets = [
+    ...(await discoverCollections(root)).map((c) => c.dir),
+    ...contentConfigCandidates(root)
+  ]
+  for (const t of targets) {
+    if (!(await pathExists(t))) continue
+    try {
+      postsWatchers.push(watch(t, { recursive: true }, schedule))
+    } catch {
+      // 单个目标监听失败不影响整体
+    }
+  }
+}
 
 export function registerIpcHandlers(): void {
   devManager = new DevServerManager((state) => {
     getMainWindow()?.webContents.send('dev:state', state)
   })
+  buildRunner = new BuildRunner((state) => {
+    getMainWindow()?.webContents.send('build:state', state)
+  })
 
   // ---- 设置 / 最近项目 ----
   ipcMain.handle('settings:get', () => loadSettings(app.getPath('userData')))
+  ipcMain.handle('settings:save', (_e, patch) => updateAppPreferences(app.getPath('userData'), patch))
   ipcMain.handle('settings:remove-recent', (_e, path: string) =>
     removeRecentProject(app.getPath('userData'), path)
+  )
+
+  // ---- git ----
+  ipcMain.handle('git:status', () => gitStatus(requireRoot()))
+  ipcMain.handle('git:commit', (_e, ids: string[], message: string) =>
+    gitCommit(requireRoot(), ids, message)
   )
 
   // ---- 项目 ----
@@ -53,19 +134,22 @@ export function registerIpcHandlers(): void {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
   })
 
-  ipcMain.handle('project:open', (_e, path: string) => {
-    const validation = validateAstroProject(path)
+  ipcMain.handle('project:open', async (_e, path: string) => {
+    const validation = await validateAstroProject(path)
     if (!validation.ok) throw new Error(validation.reason ?? '不是有效的 Astro 项目')
     void devManager?.stop()
-    const info = readProjectInfo(path)
+    const previousRoot = getCurrentRoot()
+    const info = await readProjectInfo(path)
     setCurrentProject(info)
+    if (previousRoot && previousRoot !== path) clearPostCache(previousRoot)
+    void startPostsWatch(path)
     addRecentProject(app.getPath('userData'), path)
     return info
   })
 
-  ipcMain.handle('project:refresh', () => {
+  ipcMain.handle('project:refresh', async () => {
     const root = requireRoot()
-    const info = readProjectInfo(root)
+    const info = await readProjectInfo(root)
     setCurrentProject(info)
     return info
   })
@@ -80,19 +164,16 @@ export function registerIpcHandlers(): void {
   })
 
   // ---- 文章 ----
-  ipcMain.handle('posts:list', () => {
+  ipcMain.handle('posts:list', async () => {
     const root = requireRoot()
-    return scanPosts(root, discoverCollections(root))
+    return scanPosts(root, await discoverCollections(root))
   })
 
-  ipcMain.handle('posts:read', (_e, id: string) => {
-    const root = requireRoot()
-    return readPost(root, id)
-  })
+  ipcMain.handle('posts:read', (_e, id: string) => readPost(requireRoot(), id))
 
-  ipcMain.handle('posts:create', (_e, input) => {
+  ipcMain.handle('posts:create', async (_e, input) => {
     const root = requireRoot()
-    return createPost(root, input, discoverCollections(root))
+    return createPost(root, input, await discoverCollections(root))
   })
 
   ipcMain.handle('posts:save', (_e, input) => savePost(requireRoot(), input))
@@ -105,9 +186,18 @@ export function registerIpcHandlers(): void {
     await deletePost(requireRoot(), id, shell.trashItem)
   })
 
-  ipcMain.handle('posts:template', (_e, collection: string) => {
+  ipcMain.handle('posts:bulk-update', (_e, ids: string[], patch) =>
+    bulkUpdatePosts(requireRoot(), ids, patch)
+  )
+
+  ipcMain.handle('posts:check-links', async () => {
     const root = requireRoot()
-    return buildFrontmatterTemplate(root, collection, discoverCollections(root))
+    return checkLinks(root, await discoverCollections(root))
+  })
+
+  ipcMain.handle('posts:template', async (_e, collection: string) => {
+    const root = requireRoot()
+    return buildFrontmatterTemplate(root, collection, await discoverCollections(root))
   })
 
   // ---- 图片 ----
@@ -120,10 +210,31 @@ export function registerIpcHandlers(): void {
     const result = await dialog.showOpenDialog(win, {
       title: '选择要导入的图片',
       filters: [IMAGE_FILTER],
-      properties: ['openFile']
+      properties: ['openFile', 'multiSelections']
     })
     if (result.canceled || result.filePaths.length === 0) return null
-    return importImage(root, result.filePaths[0])
+    return Promise.all(result.filePaths.map((p) => importImage(root, p)))
+  })
+
+  // 编辑器粘贴/拖入的图片数据（渲染进程以 Uint8Array 传输）
+  ipcMain.handle('images:save', (_e, name: string, mime: string, data: Uint8Array) =>
+    saveImage(requireRoot(), name, mime, data)
+  )
+
+  ipcMain.handle('images:delete', async (_e, relPath: string) => {
+    await deleteImage(requireRoot(), relPath, shell.trashItem)
+  })
+
+  ipcMain.handle('images:find-unused', () => findUnusedImages(requireRoot()))
+
+  // ---- 生产构建 ----
+  ipcMain.handle('build:start', () => {
+    const project = getCurrentProject()
+    if (!project) throw new Error('尚未打开 Astro 项目')
+    buildRunner?.start(project.path, project.packageManager)
+  })
+  ipcMain.handle('build:stop', async () => {
+    await buildRunner?.stop()
   })
 
   // ---- dev server ----
@@ -139,7 +250,8 @@ export function registerIpcHandlers(): void {
   })
 }
 
-/** 应用退出前停止 dev server 子进程 */
+/** 应用退出前停止 dev server / 构建子进程与文件监听 */
 export async function disposeIpc(): Promise<void> {
-  await devManager?.stop()
+  stopPostsWatch()
+  await Promise.all([devManager?.stop(), buildRunner?.stop()])
 }

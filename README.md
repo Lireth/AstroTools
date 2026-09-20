@@ -13,7 +13,17 @@
   - Markdown 编辑器（CodeMirror 6）+ 实时渲染预览（markdown-it + highlight.js）
   - frontmatter 表单化编辑，主题专有字段可通过"其他字段"编辑
 - **全文搜索 + 筛选**：按标题/正文/标签全文搜索，支持标签筛选、草稿筛选、集合切换
-- **图片资源管理**：浏览 `public/` 下全部图片、预览、一键复制 markdown 引用、从本机导入图片
+- **批量操作**：多选文章批量发布/转草稿/加标签/删除（自动适配每篇的 frontmatter 键名）
+- **死链检查**：扫描站内链接与图片引用，按文章分组展示无效引用
+- **命令面板**：`Ctrl+P` 快速搜索文章标题、跳转页面、启停开发服务器
+- **统计仪表盘**：文章/草稿/字数概览、近 12 个月发布趋势、标签分布、草稿箱
+- **YAML 源码编辑**：frontmatter 支持表单与 YAML 源码两种模式切换
+- **图片资源管理**：浏览 `public/` 下全部图片、预览、一键复制 markdown 引用、批量导入图片、移入回收站、查找未被文章/源码引用的图片
+- **编辑器插图**：在编辑器中直接粘贴/拖入图片，自动保存到 `public/images/` 并插入 markdown 引用
+- **文件监听**：自动检测文章文件的外部修改（git pull、其他编辑器），文章列表实时更新
+- **一键构建**：顶栏运行 `astro build` 生产构建，查看进度与日志，支持取消
+- **Git 集成**：文章列表显示 git 状态（修改/新增/未跟踪），批量勾选文章一键提交
+- **设置**：浅色/深色/跟随系统主题、编辑器字号调节（设置持久化）
 - **内嵌预览**：一键启动/停止 Astro 开发服务器，在应用内嵌 webview 中实时预览站点（支持 npm/pnpm/yarn/bun）
 
 ## 使用
@@ -36,6 +46,8 @@ npm run typecheck   # 类型检查（node + web 两部分）
 npm test            # vitest 单元测试
 npm run build       # 构建（out/ 目录）
 node tests/e2e/app.e2e.mjs   # E2E 冒烟测试（驱动真实窗口，截图输出到 tests/e2e/screenshots/）
+npm run dist        # 打包安装程序（electron-builder，输出 release/）
+npm run dist:dir    # 打包免安装目录（快速验证）
 ```
 
 ## 目录结构

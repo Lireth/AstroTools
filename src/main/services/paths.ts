@@ -1,4 +1,15 @@
+import { access } from 'node:fs/promises'
 import { isAbsolute, resolve, sep } from 'node:path'
+
+/** 文件/目录是否存在（异步，避免阻塞主进程事件循环） */
+export async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p)
+    return true
+  } catch {
+    return false
+  }
+}
 
 /** 将 rel 解析为 root 内的绝对路径；越出根目录时抛错（防路径穿越） */
 export function resolveWithin(root: string, rel: string): string {

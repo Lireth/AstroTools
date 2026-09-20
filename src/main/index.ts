@@ -1,9 +1,9 @@
-import { app, BrowserWindow, net, protocol } from 'electron'
-import { existsSync, statSync } from 'node:fs'
+import { app, BrowserWindow, ipcMain, net, protocol } from 'electron'
+import { stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { disposeIpc, registerIpcHandlers } from './ipc'
-import { getCurrentRoot, setMainWindow } from './state'
+import { getCurrentRoot, getMainWindow, setMainWindow } from './state'
 
 const MEDIA_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -25,6 +25,9 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+let forceClose = false
+let quitting = false
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1320,
@@ -42,6 +45,12 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => win.show())
   win.on('closed', () => setMainWindow(null))
+  // 有未保存修改时先询问渲染层（渲染层确认后调用 app:confirm-close）
+  win.on('close', (e) => {
+    if (forceClose || quitting) return
+    e.preventDefault()
+    win.webContents.send('app:request-close')
+  })
   setMainWindow(win)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -65,7 +74,13 @@ function registerMediaProtocol(): void {
       if (abs !== publicRoot && !abs.startsWith(publicRoot + sep)) {
         return new Response('forbidden', { status: 403 })
       }
-      if (!existsSync(abs) || !statSync(abs).isFile()) {
+      let st
+      try {
+        st = await stat(abs)
+      } catch {
+        return new Response('not found', { status: 404 })
+      }
+      if (!st.isFile()) {
         return new Response('not found', { status: 404 })
       }
 
@@ -79,8 +94,6 @@ function registerMediaProtocol(): void {
   })
 }
 
-let quitting = false
-
 app.setName('astroblog-manager')
 
 // E2E 测试钩子：设置 ASTROTOOLS_E2E=<端口> 时开启 CDP 远程调试（仅测试用）
@@ -91,6 +104,11 @@ if (process.env['ASTROTOOLS_E2E']) {
 app.whenReady().then(() => {
   registerIpcHandlers()
   registerMediaProtocol()
+  // 渲染层确认可以关闭（无脏状态或用户已确认放弃/保存）后放行
+  ipcMain.handle('app:confirm-close', () => {
+    forceClose = true
+    getMainWindow()?.close()
+  })
   createWindow()
 
   app.on('activate', () => {

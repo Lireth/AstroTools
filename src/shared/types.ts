@@ -124,9 +124,58 @@ export interface DevServerState {
   pid?: number
 }
 
+/** 生产构建（astro build）状态 */
+export interface BuildState {
+  status: 'idle' | 'building' | 'done' | 'error'
+  /** 最近一条日志（成功含耗时与输出尾部，失败含错误尾部） */
+  message?: string
+  /** 最近一次成功构建的耗时（毫秒） */
+  durationMs?: number
+}
+
 /** 导入图片结果 */
 export interface ImportImageResult {
   image: ImageItem
   /** 建议的 markdown 引用，如 ![foo](/images/foo.png) */
   markdownRef: string
+}
+
+/** 应用主题模式 */
+export type ThemeMode = 'light' | 'dark' | 'system'
+
+/** 应用设置（settings.json 持久化） */
+export interface AppSettings {
+  recentProjects: string[]
+  theme: ThemeMode
+  /** 编辑器字号（px，12-24） */
+  editorFontSize: number
+}
+
+/** git 文章状态（来自 git status porcelain 的简化映射） */
+export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'untracked'
+
+/** 批量更新入参：undefined 的字段不修改 */
+export interface BulkUpdatePatch {
+  /** 目标草稿状态（服务端按每篇实际的 draft/published 键写入） */
+  draft?: boolean
+  /** 追加合并去重的标签 */
+  addTags?: string[]
+}
+
+/** 批量操作逐篇结果 */
+export interface BulkUpdateResult {
+  id: string
+  ok: boolean
+  /** 失败/跳过原因 */
+  error?: string
+}
+
+/** 死链检查问题条目 */
+export interface LinkIssue {
+  postId: string
+  postTitle: string
+  type: 'link' | 'image'
+  /** 引用目标（已去除 #anchor 与 ?query） */
+  target: string
+  reason: string
 }
