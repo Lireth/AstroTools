@@ -1,13 +1,24 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, keymap, runScopeHandlers, type Panel } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { languages } from '@codemirror/language-data'
 import { oneDark } from '@codemirror/theme-one-dark'
+import {
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  getSearchQuery,
+  replaceAll,
+  replaceNext,
+  search,
+  SearchQuery,
+  setSearchQuery
+} from '@codemirror/search'
 
 const props = defineProps<{
   modelValue: string
@@ -33,6 +44,80 @@ function languageExtension(): Extension {
   return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
 }
 
+/**
+ * 中文查找/替换面板（Ctrl+F 唤出，见 extensions 中的 search 配置）。
+ * basicSetup 自带的默认面板为英文界面，与应用全中文 UI 不符，故自定义：
+ * 输入时同步查询，Enter/Shift+Enter 在匹配间导航，替换框内 Enter 逐个替换。
+ */
+function makeSearchPanel(view: EditorView): Panel {
+  const initial = getSearchQuery(view.state)
+
+  const searchInput = document.createElement('input')
+  searchInput.value = initial.search
+  searchInput.placeholder = '查找…'
+  searchInput.setAttribute('main-field', 'true')
+
+  const replaceInput = document.createElement('input')
+  replaceInput.value = initial.replace
+  replaceInput.placeholder = '替换为…'
+
+  const applyQuery = (): void => {
+    view.dispatch({
+      effects: setSearchQuery.of(
+        new SearchQuery({ search: searchInput.value, replace: replaceInput.value })
+      )
+    })
+  }
+  const run = (cmd: (v: EditorView) => boolean): void => {
+    applyQuery()
+    cmd(view)
+  }
+  const button = (text: string, onClick: () => void): HTMLButtonElement => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.textContent = text
+    // 阻止按钮抢占焦点，保持查询输入框的选区
+    b.addEventListener('mousedown', (e) => e.preventDefault())
+    b.addEventListener('click', onClick)
+    return b
+  }
+
+  const onEnter = (cmd: (v: EditorView) => boolean) => (e: KeyboardEvent): void => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    run(cmd)
+  }
+  searchInput.addEventListener('input', applyQuery)
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault()
+      run(findPrevious)
+    } else {
+      onEnter(findNext)(e)
+    }
+  })
+  replaceInput.addEventListener('keydown', onEnter(replaceNext))
+
+  const dom = document.createElement('div')
+  dom.className = 'cm-search-panel'
+  // 面板不在 contentDOM 内，keydown 不会进入编辑器 keymap（同内置面板做法）：
+  // 在面板 DOM 上跑 search-panel 作用域绑定，让 searchKeymap 的 Esc/F3/Mod-g 生效
+  dom.addEventListener('keydown', (e) => {
+    if (runScopeHandlers(view, e, 'search-panel')) e.preventDefault()
+  })
+  dom.append(
+    searchInput,
+    button('下一个', () => run(findNext)),
+    button('上一个', () => run(findPrevious)),
+    replaceInput,
+    button('替换', () => run(replaceNext)),
+    button('全部', () => run(replaceAll)),
+    button('关闭', () => closeSearchPanel(view))
+  )
+
+  return { dom, top: true, mount: () => searchInput.select() }
+}
+
 /** 粘贴/拖入图片：交给 imageHandler 保存并把 markdown 引用插入光标处 */
 async function transferImage(event: ClipboardEvent | DragEvent, v: EditorView): Promise<void> {
   const dt = 'clipboardData' in event ? event.clipboardData : event.dataTransfer
@@ -54,6 +139,10 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         basicSetup,
+        // Ctrl+F / Enter / Esc 由 basicSetup 内置的 searchKeymap 处理，
+        // 这里仅替换默认面板为中文版；Escape 兜底绑定：面板未开时返回 false 不影响其他按键
+        search({ createPanel: makeSearchPanel }),
+        keymap.of([{ key: 'Escape', run: closeSearchPanel }]),
         themeCompartment.of(props.dark ? oneDark : []),
         languageExtension(),
         EditorView.lineWrapping,
@@ -126,5 +215,42 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   border-radius: 8px;
+}
+
+/* 中文查找/替换面板（跟随 Element Plus 主题变量，深浅色自适应） */
+.code-editor :deep(.cm-search-panel) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+}
+.code-editor :deep(.cm-search-panel input) {
+  width: 150px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  outline: none;
+}
+.code-editor :deep(.cm-search-panel input:focus) {
+  border-color: var(--el-color-primary);
+}
+.code-editor :deep(.cm-search-panel button) {
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+.code-editor :deep(.cm-search-panel button:hover) {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
 }
 </style>
