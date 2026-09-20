@@ -39,12 +39,13 @@ export const usePostsStore = defineStore('posts', () => {
   })
 
   const filtered = computed(() => {
-    const q = query.value.trim().toLowerCase()
+    // 多词 AND：所有关键词都命中才算匹配（searchText 含标题/正文/标签/描述）
+    const terms = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
     return posts.value.filter((p) => {
       if (collection.value && p.collection !== collection.value) return false
       if (tag.value && !p.tags.includes(tag.value)) return false
       if (draftOnly.value && !p.draft) return false
-      if (q && !p.searchText.includes(q)) return false
+      if (terms.length && !terms.every((t) => p.searchText.includes(t))) return false
       return true
     })
   })

@@ -1,0 +1,16 @@
+appId: com.jasonshane.astroblog-manager
+productName: AstroBlog Manager
+directories:
+  output: release
+# electron-vite 构建产物（main/preload/renderer）
+files:
+  - out/**
+asar: true
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: AstroBlog Manager

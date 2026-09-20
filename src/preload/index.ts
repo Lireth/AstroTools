@@ -24,6 +24,7 @@ const api: Api = {
 
   listImages: () => ipcRenderer.invoke('images:list'),
   importImage: () => ipcRenderer.invoke('images:import'),
+  saveImage: (name, mime, data) => ipcRenderer.invoke('images:save', name, mime, data),
 
   startDevServer: () => ipcRenderer.invoke('dev:start'),
   stopDevServer: () => ipcRenderer.invoke('dev:stop'),

@@ -57,9 +57,10 @@ const actions = computed<PaletteAction[]>(() => {
 })
 
 const postHits = computed<PostMeta[]>(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return posts.posts.slice(0, 6)
-  return posts.posts.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 8)
+  // 复用主进程生成的全文索引（标题/正文/标签/描述），多词 AND 匹配
+  const terms = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!terms.length) return posts.posts.slice(0, 6)
+  return posts.posts.filter((p) => terms.every((t) => p.searchText.includes(t))).slice(0, 8)
 })
 
 interface PaletteRow {

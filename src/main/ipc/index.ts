@@ -1,7 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { discoverCollections, readProjectInfo, validateAstroProject } from '../services/astroProject'
 import { DevServerManager } from '../services/devServer'
-import { importImage, listImages } from '../services/imageService'
+import { importImage, listImages, saveImage } from '../services/imageService'
 import {
   bulkUpdatePosts,
   buildFrontmatterTemplate,
@@ -136,6 +136,11 @@ export function registerIpcHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return null
     return importImage(root, result.filePaths[0])
   })
+
+  // 编辑器粘贴/拖入的图片数据（渲染进程以 Uint8Array 传输）
+  ipcMain.handle('images:save', (_e, name: string, mime: string, data: Uint8Array) =>
+    saveImage(requireRoot(), name, mime, data)
+  )
 
   // ---- dev server ----
   ipcMain.handle('dev:start', async () => {

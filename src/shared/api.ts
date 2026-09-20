@@ -46,6 +46,8 @@ export interface Api {
   listImages(): Promise<ImageItem[]>
   /** 弹出文件选择框导入一张图片到 public/ */
   importImage(): Promise<ImportImageResult | null>
+  /** 保存编辑器粘贴/拖入的图片二进制到 public/images/，返回 markdown 引用 */
+  saveImage(name: string, mime: string, data: Uint8Array): Promise<ImportImageResult>
 
   startDevServer(): Promise<void>
   stopDevServer(): Promise<void>

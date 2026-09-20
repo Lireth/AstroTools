@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js/lib/common'
 import taskLists from 'markdown-it-task-lists'
@@ -47,7 +47,26 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLink(tokens, idx, options, env, self)
 }
 
-const html = computed(() => md.render(props.source ?? ''))
+// 渲染防抖：每个按键都全量 md.render 在长文下会掉帧。
+// 首次加载（当前为空）立即渲染；连续输入时 250ms 防抖后再渲染。
+const rendered = ref(props.source)
+let debounceTimer: number | undefined
+watch(
+  () => props.source,
+  (value) => {
+    if (!rendered.value) {
+      rendered.value = value
+      return
+    }
+    window.clearTimeout(debounceTimer)
+    debounceTimer = window.setTimeout(() => {
+      rendered.value = value
+    }, 250)
+  }
+)
+onBeforeUnmount(() => window.clearTimeout(debounceTimer))
+
+const html = computed(() => md.render(rendered.value))
 
 function onPreviewClick(e: MouseEvent): void {
   const anchor = (e.target as HTMLElement).closest('a')

@@ -70,6 +70,19 @@ function addExtra(): void {
   editor.markDirty()
 }
 
+/** 编辑器粘贴/拖入图片：保存到 public/images/ 并返回 markdown 引用插入光标处 */
+async function handleImageFile(file: File): Promise<string | null> {
+  try {
+    const data = new Uint8Array(await file.arrayBuffer())
+    const result = await window.api.saveImage(file.name, file.type, data)
+    ElMessage.success(`图片已保存：${result.image.name}`)
+    return result.markdownRef
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+    return null
+  }
+}
+
 function removeExtra(index: number): void {
   editor.extras.splice(index, 1)
   editor.markDirty()
@@ -257,6 +270,7 @@ onBeforeUnmount(() => {
       <div class="editor-pane">
         <CodeEditor
           v-model="editor.body"
+          :image-handler="handleImageFile"
           @update:model-value="editor.markDirty()"
           @save="doSave"
         />

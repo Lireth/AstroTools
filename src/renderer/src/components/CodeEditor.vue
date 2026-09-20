@@ -8,7 +8,13 @@ import { markdown } from '@codemirror/lang-markdown'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { languages } from '@codemirror/language-data'
 
-const props = defineProps<{ modelValue: string; readOnly?: boolean; language?: 'markdown' | 'yaml' }>()
+const props = defineProps<{
+  modelValue: string
+  readOnly?: boolean
+  language?: 'markdown' | 'yaml'
+  /** 粘贴/拖入图片时被调用：保存后返回 markdown 引用文本，返回 null 表示放弃 */
+  imageHandler?: (file: File) => Promise<string | null>
+}>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'save'): void }>()
 
 const container = ref<HTMLDivElement | null>(null)
@@ -18,6 +24,20 @@ let syncing = false
 
 function languageExtension(): Extension {
   return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
+}
+
+/** 粘贴/拖入图片：交给 imageHandler 保存并把 markdown 引用插入光标处 */
+async function transferImage(event: ClipboardEvent | DragEvent, v: EditorView): Promise<void> {
+  const dt = 'clipboardData' in event ? event.clipboardData : event.dataTransfer
+  if (!dt || !props.imageHandler) return
+  const file = [...dt.files].find((f) => f.type.startsWith('image/'))
+  if (!file) return
+  event.preventDefault()
+  const markdown = await props.imageHandler(file)
+  if (markdown) {
+    v.dispatch(v.state.replaceSelection(markdown))
+    v.focus()
+  }
 }
 
 onMounted(() => {
@@ -41,6 +61,16 @@ onMounted(() => {
           }
         ]),
         keymap.of([...defaultKeymap, indentWithTab]),
+        EditorView.domEventHandlers({
+          paste: (event, v) => {
+            void transferImage(event, v)
+            return false
+          },
+          drop: (event, v) => {
+            void transferImage(event, v)
+            return false
+          }
+        }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !syncing) {
             emit('update:modelValue', update.state.doc.toString())
