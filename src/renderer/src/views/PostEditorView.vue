@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, CircleCheck, Loading, Plus, View } from '@element-plus/icons-vue'
 import CodeEditor from '../components/CodeEditor.vue'
@@ -86,6 +86,35 @@ watch(
   },
   { immediate: true }
 )
+
+// 脏状态守卫：编辑另一篇文章（路由更新）或离开编辑页（路由离开）前，
+// 未保存的修改先经用户确认，避免命令面板/侧栏跳转时静默丢失内容。
+async function confirmLeave(): Promise<boolean> {
+  if (!editor.dirty) return true
+  try {
+    await ElMessageBox.confirm('当前文章有未保存的修改。', '未保存的修改', {
+      type: 'warning',
+      distinguishCancelAndClose: true,
+      confirmButtonText: '保存并离开',
+      cancelButtonText: '放弃修改并离开'
+    })
+  } catch (action) {
+    // close：点击右上角 × / Esc → 留在当前页；cancel：明确选择放弃 → 放行
+    return action === 'cancel'
+  }
+  try {
+    await editor.save()
+    // YAML 模式下解析失败时 save() 会静默中止（不抛错），dirty 仍为 true → 留在编辑页
+    if (editor.dirty) return false
+    return true
+  } catch (err) {
+    ElMessage.error(`保存失败，仍停留在编辑页: ${(err as Error).message}`)
+    return false
+  }
+}
+
+onBeforeRouteUpdate(async () => confirmLeave())
+onBeforeRouteLeave(async () => confirmLeave())
 
 onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)

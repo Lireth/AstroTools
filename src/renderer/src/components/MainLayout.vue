@@ -6,12 +6,14 @@ import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, Swi
 import CommandPalette from './CommandPalette.vue'
 import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
+import { useEditorStore } from '../stores/editor'
 import { useDevServerStore } from '../stores/devServer'
 
 const route = useRoute()
 const router = useRouter()
 const project = useProjectStore()
 const posts = usePostsStore()
+const editor = useEditorStore()
 const dev = useDevServerStore()
 
 const paletteOpen = ref(false)
@@ -90,10 +92,12 @@ async function toggleDev(): Promise<void> {
   }
 }
 
-// 项目切换时清空筛选并重新加载文章
+// 项目切换时：清空编辑器状态（防止旧项目文章内容残留、误存到新项目），
+// 清空筛选并重新加载文章
 watch(
   () => project.info?.path,
   () => {
+    editor.reset()
     posts.clearFilters()
     void posts.load(true)
   }

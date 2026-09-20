@@ -13,7 +13,8 @@ export type StateListener = (state: DevServerState) => void
 export class DevServerManager {
   private proc: ChildProcess | null = null
   private state: DevServerState = { status: 'idle' }
-  private stoppedByUs = false
+  /** 停止流程进行中时持有；进程完全结束后清理。start() 借此等待旧进程退场 */
+  private stopPromise: Promise<void> | null = null
 
   constructor(private readonly listener: StateListener) {}
 
@@ -27,14 +28,17 @@ export class DevServerManager {
   }
 
   async start(root: string, packageManager: ProjectInfo['packageManager']): Promise<void> {
+    // project:open 对 stop() 未 await：可能在旧进程尚在退出时立即启动新项目。
+    // 先等停止流程收尾，避免旧进程的 exit 回调污染新进程的状态。
+    if (this.stopPromise) await this.stopPromise
     if (this.state.status === 'starting' || this.state.status === 'running') return
 
-    this.stoppedByUs = false
     this.emit({ status: 'starting', url: undefined, message: '正在启动 Astro 开发服务器…' })
 
     const cmd = packageManager === 'unknown' ? 'npm' : packageManager
+    let proc: ChildProcess
     try {
-      this.proc = spawn(cmd, ['run', 'dev'], {
+      proc = spawn(cmd, ['run', 'dev'], {
         cwd: root,
         shell: true,
         // Windows 上 detached 会让子进程脱离父进程的 stdio 管道，导致收不到输出；
@@ -46,12 +50,15 @@ export class DevServerManager {
       this.emit({ status: 'error', message: `启动失败: ${String(err)}` })
       return
     }
+    this.proc = proc
 
-    const pid = this.proc.pid
+    const pid = proc.pid
     this.emit({ status: 'starting', pid, message: `进程 ${pid ?? '?'} 已启动，等待 Astro 就绪…` })
 
     let log = ''
     const onChunk = (chunk: Buffer | string): void => {
+      // 进程已被替换后，旧进程的残余输出不应再驱动状态
+      if (this.proc !== proc) return
       const text = String(chunk)
       log = (log + text).slice(-LOG_LIMIT)
       if (this.state.status === 'starting') {
@@ -65,12 +72,12 @@ export class DevServerManager {
         }
       }
     }
-    this.proc.stdout?.on('data', onChunk)
-    this.proc.stderr?.on('data', onChunk)
+    proc.stdout?.on('data', onChunk)
+    proc.stderr?.on('data', onChunk)
 
     // 启动期间周期性把日志尾部推给界面，用户能看到启动进展
     const startLogTimer = setInterval(() => {
-      if (this.state.status !== 'starting') {
+      if (this.state.status !== 'starting' || this.proc !== proc) {
         clearInterval(startLogTimer)
         return
       }
@@ -81,12 +88,17 @@ export class DevServerManager {
       })
     }, 1500)
 
-    this.proc.on('error', (err) => {
-      if (!this.stoppedByUs) this.emit({ status: 'error', message: `进程错误: ${err.message}` })
+    proc.on('error', (err) => {
+      if (this.proc !== proc) return
+      this.emit({ status: 'error', message: `进程错误: ${err.message}` })
     })
-    this.proc.on('exit', (code) => {
+    proc.on('exit', (code) => {
+      clearInterval(startLogTimer)
+      // 进程已被替换（stop 未收尾就 start 了新进程）：这是旧进程的延迟回调，不得清空新进程引用
+      if (this.proc !== proc) return
       this.proc = null
-      if (this.stoppedByUs) {
+      // 区分"用户主动停止"（此时状态为 stopping）与"自行退出/崩溃"
+      if (this.state.status === 'stopping') {
         this.emit({ status: 'idle', pid: undefined, url: undefined, message: '开发服务器已停止' })
       } else {
         this.emit({
@@ -100,14 +112,18 @@ export class DevServerManager {
   }
 
   async stop(): Promise<void> {
+    // 并发调用时复用同一次停止流程，避免重复 kill / 状态覆盖
+    if (this.stopPromise) return this.stopPromise
     const proc = this.proc
     if (!proc || proc.pid === undefined) {
       this.emit({ status: 'idle' })
       return
     }
-    this.stoppedByUs = true
     this.emit({ status: 'stopping', message: '正在停止开发服务器…' })
-    await killTree(proc.pid)
+    this.stopPromise = killTree(proc.pid).finally(() => {
+      this.stopPromise = null
+    })
+    return this.stopPromise
   }
 }
 

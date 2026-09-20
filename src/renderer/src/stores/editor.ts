@@ -251,6 +251,28 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  /** 清空全部编辑状态（切换项目时调用，防止旧项目的编辑内容残留、误存到新项目） */
+  function reset(): void {
+    detail.value = null
+    loading.value = false
+    saving.value = false
+    dirty.value = false
+    body.value = ''
+    title.value = ''
+    dateStr.value = ''
+    tags.value = []
+    description.value = ''
+    draft.value = false
+    fileName.value = ''
+    extras.value = []
+    yamlMode.value = false
+    yamlText.value = ''
+    yamlError.value = null
+    yamlBase = ''
+    originalFm = {}
+    for (const k of Object.keys(touched) as (keyof typeof touched)[]) touched[k] = false
+  }
+
   async function rename(): Promise<void> {
     if (!detail.value) return
     if (dirty.value) throw new Error('请先保存修改，再重命名文件')
@@ -283,6 +305,7 @@ export const useEditorStore = defineStore('editor', () => {
     markTouched,
     save,
     rename,
+    reset,
     enterYamlMode,
     exitYamlMode,
     discardYaml
