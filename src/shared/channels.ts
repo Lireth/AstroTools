@@ -17,6 +17,7 @@ export const IpcChannel = {
   projectSelect: 'project:select',
   projectOpen: 'project:open',
   projectRefresh: 'project:refresh',
+  projectGetCurrent: 'project:get-current',
   projectShowInFolder: 'project:show-in-folder',
   shellOpenExternal: 'shell:open-external',
 

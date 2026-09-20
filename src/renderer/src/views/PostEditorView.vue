@@ -114,7 +114,8 @@ async function confirmLeave(): Promise<boolean> {
       cancelButtonText: '放弃修改并离开'
     })
   } catch (action) {
-    // close：点击右上角 × / Esc → 留在当前页；cancel：明确选择放弃 → 放行
+    // close：点击右上角 × / Esc → 留在当前页；cancel：明确选择放弃 → 放行并清理崩溃快照
+    if (action === 'cancel') editor.discardSnapshot()
     return action === 'cancel'
   }
   try {

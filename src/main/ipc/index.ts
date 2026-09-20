@@ -191,6 +191,9 @@ export function registerIpcHandlers(): void {
     return info
   })
 
+  // 渲染层重载（崩溃/刷新）后恢复会话：主进程内存中仍持有当前项目
+  ipcMain.handle(IpcChannel.projectGetCurrent, () => getCurrentProject())
+
   ipcMain.handle(IpcChannel.projectShowInFolder, async () => {
     await shell.openPath(requireRoot())
   })

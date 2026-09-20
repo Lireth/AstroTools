@@ -11,6 +11,7 @@ const api: Api = {
   selectProjectFolder: () => ipcRenderer.invoke(IpcChannel.projectSelect),
   openProject: (path) => ipcRenderer.invoke(IpcChannel.projectOpen, path),
   refreshProject: () => ipcRenderer.invoke(IpcChannel.projectRefresh),
+  getCurrentProject: () => ipcRenderer.invoke(IpcChannel.projectGetCurrent),
   showProjectInFolder: () => ipcRenderer.invoke(IpcChannel.projectShowInFolder),
   openExternal: (url) => ipcRenderer.invoke(IpcChannel.shellOpenExternal, url),
 
