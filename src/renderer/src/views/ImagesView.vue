@@ -226,7 +226,7 @@ onMounted(() => {
   gap: 12px;
 }
 .hint {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-sub);
 }
 .toolbar-spacer {
@@ -244,10 +244,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition:
+    box-shadow var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+.image-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
 }
 .thumb-wrap {
   height: 130px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--thumb-checker);
   display: flex;
   align-items: center;
@@ -263,7 +270,7 @@ onMounted(() => {
   min-width: 0;
 }
 .image-name {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -273,7 +280,7 @@ onMounted(() => {
   gap: 6px;
 }
 .image-meta {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-sub);
   margin-top: 2px;
 }
@@ -289,7 +296,7 @@ onMounted(() => {
 }
 
 .unused-hint {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   margin-bottom: 12px;
 }
@@ -303,8 +310,8 @@ onMounted(() => {
   margin-right: 0;
 }
 .unused-path {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

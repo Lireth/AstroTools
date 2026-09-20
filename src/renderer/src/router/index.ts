@@ -25,9 +25,18 @@ const router = createRouter({
   ]
 })
 
-// 未打开项目时只能停留在欢迎页
-router.beforeEach((to) => {
+// 未打开项目时只能停留在欢迎页。
+// 渲染层重载（崩溃/刷新恢复）时主进程可能仍持有打开的项目：
+// 首次被拦截的导航先尝试从主进程恢复会话，恢复失败才回落到欢迎页。
+let restoreAttempted = false
+
+router.beforeEach(async (to) => {
   const project = useProjectStore()
+  if (project.info || to.meta.bare) return true
+  if (!restoreAttempted) {
+    restoreAttempted = true
+    await project.restore()
+  }
   if (!project.info && !to.meta.bare) return { path: '/welcome' }
 })
 

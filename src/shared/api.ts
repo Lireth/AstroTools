@@ -33,6 +33,8 @@ export interface Api {
   openProject(path: string): Promise<ProjectInfo>
   /** 重新读取当前项目信息 */
   refreshProject(): Promise<ProjectInfo>
+  /** 获取主进程当前打开的项目（未打开时返回 null）。用于渲染层重载后恢复会话 */
+  getCurrentProject(): Promise<ProjectInfo | null>
   /** 在系统资源管理器中显示当前项目目录 */
   showProjectInFolder(): Promise<void>
   /** 用系统默认浏览器打开外部链接（仅允许 http/https） */

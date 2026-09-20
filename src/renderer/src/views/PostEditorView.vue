@@ -15,7 +15,8 @@ const editor = useEditorStore()
 const posts = usePostsStore()
 const settings = useSettingsStore()
 
-const metaOpen = ref<string[]>(['meta'])
+// 元数据面板默认折叠：避免展开状态挤压下方编辑区/预览区
+const metaOpen = ref<string[]>([])
 const previewVisible = ref(true)
 
 const postId = computed(() => decodeURIComponent(String(route.params.id ?? '')))
@@ -28,7 +29,13 @@ const yamlOn = computed({
       editor.enterYamlMode()
       return
     }
-    if (!editor.yamlDirty || editor.exitYamlMode()) return
+    // 无未应用的 YAML 修改：直接退回表单模式
+    if (!editor.yamlDirty) {
+      editor.discardYaml()
+      return
+    }
+    // 有修改：解析成功则应用回表单；失败则确认是否放弃
+    if (editor.exitYamlMode()) return
     void ElMessageBox.confirm('YAML 内容解析失败，放弃这些修改并返回表单模式？', '提示', {
       type: 'warning',
       confirmButtonText: '放弃修改',
@@ -114,7 +121,8 @@ async function confirmLeave(): Promise<boolean> {
       cancelButtonText: '放弃修改并离开'
     })
   } catch (action) {
-    // close：点击右上角 × / Esc → 留在当前页；cancel：明确选择放弃 → 放行
+    // close：点击右上角 × / Esc → 留在当前页；cancel：明确选择放弃 → 放行并清理崩溃快照
+    if (action === 'cancel') editor.discardSnapshot()
     return action === 'cancel'
   }
   try {
@@ -215,7 +223,6 @@ onBeforeUnmount(() => {
                 type="date"
                 value-format="YYYY-MM-DD"
                 placeholder="选择日期"
-                style="width: 100%"
                 @change="editor.markTouched('date')"
               />
             </div>
@@ -228,7 +235,6 @@ onBeforeUnmount(() => {
                 allow-create
                 default-first-option
                 placeholder="输入后回车创建"
-                style="width: 100%"
                 @change="editor.markTouched('tags')"
               >
                 <el-option
@@ -243,7 +249,7 @@ onBeforeUnmount(() => {
               <label>草稿</label>
               <el-switch v-model="editor.draft" @change="editor.markTouched('draft')" />
             </div>
-            <div class="meta-item span-2">
+            <div class="meta-item span-all">
               <label>描述</label>
               <el-input
                 v-model="editor.description"
@@ -253,7 +259,7 @@ onBeforeUnmount(() => {
                 @input="editor.markTouched('description')"
               />
             </div>
-            <div class="meta-item span-2 rename-row">
+            <div class="meta-item span-all rename-row">
               <label>文件名</label>
               <div class="rename-control">
                 <el-input v-model="editor.fileName" placeholder="文件名" />
@@ -261,7 +267,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="meta-item span-2">
+            <div class="meta-item span-all">
               <label>其他字段</label>
               <div class="extras">
                 <div v-for="(f, i) in editor.extras" :key="i" class="extra-row">
@@ -330,7 +336,7 @@ onBeforeUnmount(() => {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--warning);
   flex-shrink: 0;
 }
 .title-input {
@@ -339,41 +345,43 @@ onBeforeUnmount(() => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 19px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--text-main);
   padding: 4px 2px;
+  font-family: var(--font-ui);
 }
 .title-input::placeholder {
-  color: #b3b8c6;
+  color: var(--text-sub);
+  opacity: 0.7;
 }
 .word-count {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   flex-shrink: 0;
 }
 
 .meta-collapse {
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-soft);
   --el-collapse-border-color: var(--border-soft);
 }
 .meta-collapse :deep(.el-collapse-item__header) {
   padding: 0 14px;
   background: var(--bg-panel-alt);
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 .meta-collapse :deep(.el-collapse-item__wrap) {
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .meta-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .meta-file {
   margin-left: 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
 }
 .yaml-switch-wrap {
@@ -386,21 +394,26 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 展开时限制内容高度并内部滚动：保证下方编辑区/预览区始终有可用空间 */
+  max-height: 46vh;
+  overflow-y: auto;
 }
 .yaml-alert {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .yaml-editor-wrap {
   height: 260px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-card);
 }
 
 .meta-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* 三列：发布日期 | 标签 | 草稿 同行，减少面板展开时的纵向占用 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  align-items: end;
   gap: 12px 16px;
   padding: 4px 14px 14px;
 }
@@ -408,19 +421,32 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 .meta-item label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   font-weight: 600;
 }
-.meta-item.span-2 {
-  grid-column: span 2;
+/* 收敛原内联 width:100% */
+.meta-item :deep(.el-date-editor.el-input),
+.meta-item :deep(.el-date-editor.el-input__wrapper),
+.meta-item :deep(.el-select) {
+  width: 100%;
+}
+.meta-item.span-all {
+  grid-column: 1 / -1;
 }
 .draft-item {
   flex-direction: row;
   align-items: center;
   gap: 12px;
+  height: 32px;
+}
+@media (max-width: 1100px) {
+  .meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 .rename-control {
   display: flex;
@@ -428,23 +454,31 @@ onBeforeUnmount(() => {
 }
 
 .extras {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
+  display: grid;
+  /* 自适应多列：字段行按可用宽度排布，避免每个字段独占整行 */
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 8px 12px;
+  align-items: start;
+  width: 100%;
 }
 .extra-row {
   display: flex;
   gap: 8px;
   width: 100%;
   align-items: flex-start;
+  min-width: 0;
 }
 .extra-key {
-  width: 180px;
+  width: 120px;
   flex-shrink: 0;
 }
 .extra-value {
   flex: 1;
+  min-width: 0;
+}
+.extras > .el-button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .editor-body {
@@ -457,9 +491,10 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 .editor-body.no-preview .editor-pane {
   flex: 1;
@@ -469,15 +504,16 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .preview-label {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-soft);

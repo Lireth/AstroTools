@@ -95,7 +95,7 @@ watch(isRunning, (running) => {
   flex-shrink: 0;
 }
 .url {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-sub);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -109,9 +109,10 @@ watch(isRunning, (running) => {
   flex: 1;
   min-height: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-card);
 }
 .webview {
   width: 100%;
@@ -135,35 +136,37 @@ watch(isRunning, (running) => {
 }
 .placeholder-card h2 {
   margin: 14px 0 8px;
-  font-size: 19px;
+  font-size: var(--fs-lg);
 }
 .placeholder-card p {
   color: var(--text-sub);
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   margin: 0 0 18px;
 }
 .error-text {
-  color: #ef4444 !important;
+  color: var(--danger) !important;
 }
 .error-detail {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   white-space: pre-wrap;
   text-align: left;
   max-height: 140px;
   overflow: auto;
-  background: #fef2f2;
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
-  color: #b91c1c;
+  color: var(--danger);
 }
 .log {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
-  background: #f6f7fb;
-  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   white-space: pre-wrap;
   text-align: left;

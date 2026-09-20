@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
 import { EXTERNAL_MODIFIED_PREFIX } from '@shared/channels'
@@ -131,6 +131,8 @@ export const useEditorStore = defineStore('editor', () => {
     } finally {
       loading.value = false
     }
+    // 快照恢复询问放在 loading 结束后：确保文章内容已从磁盘载入再对比/恢复
+    await maybeRestoreSnapshot()
   }
 
   /** 把 frontmatter 对象映射到表单字段（打开文章与 YAML 模式切回共用） */
@@ -176,6 +178,84 @@ export const useEditorStore = defineStore('editor', () => {
   function markTouched(field: keyof typeof touched): void {
     touched[field] = true
     dirty.value = true
+  }
+
+  // ---- 崩溃快照：编辑产生未保存修改后 2s 防抖写入 localStorage，
+  // 渲染层异常退出/崩溃重载后重新打开同一篇文章时可恢复（仅正文） ----
+  const SNAPSHOT_KEY = 'astrotools:editor-snapshot'
+  const SNAPSHOT_DEBOUNCE_MS = 2000
+
+  interface EditorSnapshot {
+    id: string
+    body: string
+    savedAt: number
+  }
+
+  let snapshotTimer: number | undefined
+
+  function readSnapshot(): EditorSnapshot | null {
+    try {
+      const raw = localStorage.getItem(SNAPSHOT_KEY)
+      if (!raw) return null
+      const snap = JSON.parse(raw) as EditorSnapshot
+      if (typeof snap?.id !== 'string' || typeof snap?.body !== 'string') return null
+      return snap
+    } catch {
+      return null
+    }
+  }
+
+  /** 清除快照与待写入定时器（保存成功 / 用户明确放弃修改 / 重置编辑器时调用） */
+  function discardSnapshot(): void {
+    if (snapshotTimer !== undefined) {
+      window.clearTimeout(snapshotTimer)
+      snapshotTimer = undefined
+    }
+    localStorage.removeItem(SNAPSHOT_KEY)
+  }
+
+  watch(body, () => {
+    if (!detail.value || !dirty.value) return
+    if (snapshotTimer !== undefined) window.clearTimeout(snapshotTimer)
+    snapshotTimer = window.setTimeout(() => {
+      snapshotTimer = undefined
+      if (!detail.value || !dirty.value) return
+      const snap: EditorSnapshot = { id: detail.value.id, body: body.value, savedAt: Date.now() }
+      try {
+        localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap))
+      } catch {
+        /* localStorage 不可用时静默跳过，不影响正常编辑 */
+      }
+    }, SNAPSHOT_DEBOUNCE_MS)
+  })
+
+  /** 打开文章后检查崩溃快照：同 id 且内容与磁盘有差异时询问恢复；不匹配的残留快照直接清理 */
+  async function maybeRestoreSnapshot(): Promise<void> {
+    const snap = readSnapshot()
+    if (!snap) return
+    if (!detail.value || snap.id !== detail.value.id || snap.body === body.value) {
+      discardSnapshot()
+      return
+    }
+    try {
+      await ElMessageBox.confirm(
+        '检测到该文章有未保存的编辑内容（可能因异常退出残留），是否恢复？',
+        '恢复未保存的草稿',
+        {
+          type: 'warning',
+          confirmButtonText: '恢复草稿',
+          cancelButtonText: '丢弃',
+          distinguishCancelAndClose: true
+        }
+      )
+    } catch (action) {
+      // cancel：明确丢弃 → 清理快照；close（× / Esc）：保留快照，下次打开仍可恢复
+      if (action === 'cancel') discardSnapshot()
+      return
+    }
+    body.value = snap.body
+    dirty.value = true
+    discardSnapshot()
   }
 
   const yamlDirty = computed(() => yamlMode.value && yamlText.value !== yamlBase)
@@ -316,6 +396,7 @@ export const useEditorStore = defineStore('editor', () => {
         yamlBase = yamlText.value
       }
       dirty.value = false
+      discardSnapshot()
       usePostsStore().invalidate()
       return 'saved'
     } finally {
@@ -345,6 +426,7 @@ export const useEditorStore = defineStore('editor', () => {
     baseMtimeMs = undefined
     baseSize = undefined
     for (const k of Object.keys(touched) as (keyof typeof touched)[]) touched[k] = false
+    discardSnapshot()
   }
 
   async function rename(): Promise<void> {
@@ -380,6 +462,7 @@ export const useEditorStore = defineStore('editor', () => {
     save,
     rename,
     reset,
+    discardSnapshot,
     enterYamlMode,
     exitYamlMode,
     discardYaml

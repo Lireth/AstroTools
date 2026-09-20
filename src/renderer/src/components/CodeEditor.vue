@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
 .code-editor {
   height: 100%;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 /* 中文查找/替换面板（跟随 Element Plus 主题变量，深浅色自适应） */
