@@ -18,6 +18,8 @@ const REFERENCE_TEXT_EXTS = new Set([
   '.md', '.mdx', '.astro', '.ts', '.mts', '.js', '.mjs', '.css', '.scss', '.vue', '.json', '.html'
 ])
 const ASTRO_CONFIG_NAMES = ['astro.config.ts', 'astro.config.mts', 'astro.config.mjs', 'astro.config.js']
+/** 粘贴/拖入保存的单张图片大小上限（20MB），防止超大 IPC 载荷耗尽内存/磁盘 */
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024
 
 export function isImageFile(name: string): boolean {
   return IMAGE_EXTS.has(extname(name).toLowerCase())
@@ -115,6 +117,9 @@ export async function saveImage(
   data: Uint8Array
 ): Promise<ImportImageResult> {
   const rawName = basename(originalName).trim() || 'pasted-image'
+  if (data.byteLength > MAX_IMAGE_SIZE) {
+    throw new Error(`图片过大（超过 ${MAX_IMAGE_SIZE / 1024 / 1024}MB），请压缩后再试`)
+  }
   let ext = extname(rawName).toLowerCase()
   if (!IMAGE_EXTS.has(ext)) {
     ext = '.' + (MIME_EXT[mime.toLowerCase().split(';')[0]] ?? '')

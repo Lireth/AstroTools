@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { GitFileStatus } from '../../shared/types'
-import { pathExists, toPosix } from './paths'
+import { pathExists, resolveWithin, toPosix } from './paths'
 
 export interface GitStatusResult {
   /** posix 相对项目根的路径 → 简化状态 */
@@ -71,7 +71,8 @@ export async function gitCommit(root: string, relPaths: string[], message: strin
   if (!relPaths.length) throw new Error('未选择要提交的文件')
   const msg = message.trim()
   if (!msg) throw new Error('请填写提交说明')
-  if (relPaths.some((p) => p.split(/[\\/]/).includes('..'))) throw new Error('非法的文件路径')
+  // 统一路径校验：越出项目根（含 .. 穿越、根外绝对路径）即拒绝，与公共服务共用 resolveWithin
+  relPaths.forEach((p) => resolveWithin(root, p))
 
   const prefix = await repoPrefix(root)
   if (prefix === null) throw new Error('当前项目不是 git 仓库')
