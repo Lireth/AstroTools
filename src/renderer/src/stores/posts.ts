@@ -4,6 +4,7 @@ import type {
   BulkUpdatePatch,
   BulkUpdateResult,
   FrontmatterTemplate,
+  GitFileStatus,
   NewPostInput,
   PostMeta
 } from '@shared/types'
@@ -31,6 +32,28 @@ export const usePostsStore = defineStore('posts', () => {
       loaded.value = true
       loading.value = false
     })
+  }
+
+  // ---- git 集成 ----
+  const gitFiles = ref<Record<string, GitFileStatus>>({})
+  const isGitRepo = ref(false)
+
+  /** 读取文章文件的 git 状态（非 git 仓库时静默置空） */
+  async function loadGitStatus(): Promise<void> {
+    try {
+      const res = await window.api.getGitStatus()
+      isGitRepo.value = !!res
+      gitFiles.value = res?.files ?? {}
+    } catch {
+      isGitRepo.value = false
+      gitFiles.value = {}
+    }
+  }
+
+  /** 提交指定文章文件后刷新 git 状态 */
+  async function commitFiles(ids: string[], message: string): Promise<void> {
+    await window.api.commitPosts(ids, message)
+    await loadGitStatus()
   }
 
   // 筛选状态（侧边栏与列表页共享）
@@ -175,6 +198,10 @@ export const usePostsStore = defineStore('posts', () => {
     reload,
     invalidate,
     initExternalSync,
+    gitFiles,
+    isGitRepo,
+    loadGitStatus,
+    commitFiles,
     clearFilters,
     createFromDialog,
     remove,

@@ -6,9 +6,17 @@
 
   --bg-page: #f4f5fa;
   --bg-panel: #ffffff;
+  /* 次级面板（折叠头、工具条底色） */
+  --bg-panel-alt: #fbfbfe;
+  /* 更弱的底色（日志框、胶囊等） */
+  --bg-soft: #f6f7fb;
+  /* 输入类控件与代码编辑器底色 */
+  --bg-card: #ffffff;
   --border-soft: #e8eaf1;
   --text-main: #1f2430;
   --text-sub: #6b7280;
+  /* 图片缩略图棋盘格（透明背景指示） */
+  --thumb-checker: conic-gradient(#f0f1f6 25%, #fff 0 50%, #f0f1f6 0 75%, #fff 0) 0 0/16px 16px;
 
   --el-color-primary: #7c5cfc;
   --el-color-primary-light-3: #9d82fd;
@@ -21,6 +29,25 @@
   font-family:
     'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
   color: var(--text-main);
+}
+
+/* 暗色模式：Element Plus 暗色变量 + 自定义调色板 */
+html.dark {
+  --bg-page: #16171f;
+  --bg-panel: #1f212b;
+  --bg-panel-alt: #23252f;
+  --bg-soft: #1e202a;
+  --bg-card: #1b1d26;
+  --border-soft: #2e3140;
+  --text-main: #e5e7f0;
+  --text-sub: #9aa0b0;
+  --thumb-checker: conic-gradient(#262936 25%, #1f212b 0 50%, #262936 0 75%, #1f212b 0) 0 0/16px 16px;
+  --el-color-primary-light-3: #6349ca;
+  --el-color-primary-light-5: #5640b0;
+  --el-color-primary-light-7: #44347f;
+  --el-color-primary-light-8: #392c69;
+  --el-color-primary-light-9: #2c2450;
+  --el-color-primary-dark-2: #9d82fd;
 }
 
 * {
@@ -56,6 +83,12 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+html.dark ::-webkit-scrollbar-thumb {
+  background: #3a3e4f;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4a4f63;
+}
 
 /* 通用卡片 */
 .panel {
@@ -71,6 +104,9 @@ body {
   color: #2a3040;
   word-break: break-word;
 }
+html.dark .md-preview {
+  color: #c9cede;
+}
 .md-preview h1,
 .md-preview h2,
 .md-preview h3,
@@ -78,6 +114,12 @@ body {
   color: #171c28;
   line-height: 1.4;
   margin: 1.2em 0 0.6em;
+}
+html.dark .md-preview h1,
+html.dark .md-preview h2,
+html.dark .md-preview h3,
+html.dark .md-preview h4 {
+  color: #eceef6;
 }
 .md-preview h1 {
   font-size: 1.7em;
@@ -96,6 +138,18 @@ body {
   padding: 14px 16px;
   overflow: auto;
   font-size: 13px;
+}
+html.dark .md-preview pre {
+  background: #171923;
+}
+html.dark .md-preview code {
+  background: #262936;
+}
+html.dark .md-preview blockquote {
+  background: #1d1f2a;
+}
+html.dark .md-preview th {
+  background: #22242f;
 }
 .md-preview pre code {
   font-family: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;

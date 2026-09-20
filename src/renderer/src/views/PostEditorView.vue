@@ -7,11 +7,13 @@ import CodeEditor from '../components/CodeEditor.vue'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import { useEditorStore } from '../stores/editor'
 import { usePostsStore } from '../stores/posts'
+import { useSettingsStore } from '../stores/settings'
 
 const route = useRoute()
 const router = useRouter()
 const editor = useEditorStore()
 const posts = usePostsStore()
+const settings = useSettingsStore()
 
 const metaOpen = ref<string[]>(['meta'])
 const previewVisible = ref(true)
@@ -191,7 +193,7 @@ onBeforeUnmount(() => {
             :description="editor.yamlError ?? ''"
           />
           <div v-if="editor.yamlMode" class="yaml-editor-wrap">
-            <CodeEditor v-model="editor.yamlText" language="yaml" />
+            <CodeEditor v-model="editor.yamlText" language="yaml" :dark="settings.isDark" :font-size="settings.editorFontSize" />
           </div>
           <div v-show="!editor.yamlMode" class="meta-grid">
           <div class="meta-item">
@@ -271,6 +273,8 @@ onBeforeUnmount(() => {
         <CodeEditor
           v-model="editor.body"
           :image-handler="handleImageFile"
+          :dark="settings.isDark"
+          :font-size="settings.editorFontSize"
           @update:model-value="editor.markDirty()"
           @save="doSave"
         />
@@ -334,7 +338,7 @@ onBeforeUnmount(() => {
 }
 .meta-collapse :deep(.el-collapse-item__header) {
   padding: 0 14px;
-  background: #fbfbfe;
+  background: var(--bg-panel-alt);
   border-radius: 10px 10px 0 0;
 }
 .meta-collapse :deep(.el-collapse-item__wrap) {
@@ -368,7 +372,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .meta-grid {
@@ -432,7 +436,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-card);
 }
 .editor-body.no-preview .editor-pane {
   flex: 1;
@@ -443,7 +447,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -454,7 +458,7 @@ onBeforeUnmount(() => {
   color: var(--text-sub);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-soft);
-  background: #fbfbfe;
+  background: var(--bg-panel-alt);
 }
 .preview-scroll {
   flex: 1;

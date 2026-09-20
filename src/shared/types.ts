@@ -140,6 +140,20 @@ export interface ImportImageResult {
   markdownRef: string
 }
 
+/** 应用主题模式 */
+export type ThemeMode = 'light' | 'dark' | 'system'
+
+/** 应用设置（settings.json 持久化） */
+export interface AppSettings {
+  recentProjects: string[]
+  theme: ThemeMode
+  /** 编辑器字号（px，12-24） */
+  editorFontSize: number
+}
+
+/** git 文章状态（来自 git status porcelain 的简化映射） */
+export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'untracked'
+
 /** 批量更新入参：undefined 的字段不修改 */
 export interface BulkUpdatePatch {
   /** 目标草稿状态（服务端按每篇实际的 draft/published 键写入） */

@@ -10,6 +10,8 @@ import { BuildRunner } from '../services/buildRunner'
 import { DevServerManager } from '../services/devServer'
 import { deleteImage, findUnusedImages, importImage, listImages, saveImage } from '../services/imageService'
 import { pathExists } from '../services/paths'
+import { gitCommit, gitStatus } from '../services/gitService'
+import { addRecentProject, loadSettings, removeRecentProject, updateAppPreferences } from '../services/settings'
 import {
   bulkUpdatePosts,
   buildFrontmatterTemplate,
@@ -22,7 +24,6 @@ import {
   scanPosts
 } from '../services/postService'
 import { checkLinks } from '../services/linkChecker'
-import { addRecentProject, loadSettings, removeRecentProject } from '../services/settings'
 import { getCurrentProject, getCurrentRoot, getMainWindow, setCurrentProject } from '../state'
 
 function requireRoot(): string {
@@ -111,8 +112,15 @@ export function registerIpcHandlers(): void {
 
   // ---- 设置 / 最近项目 ----
   ipcMain.handle('settings:get', () => loadSettings(app.getPath('userData')))
+  ipcMain.handle('settings:save', (_e, patch) => updateAppPreferences(app.getPath('userData'), patch))
   ipcMain.handle('settings:remove-recent', (_e, path: string) =>
     removeRecentProject(app.getPath('userData'), path)
+  )
+
+  // ---- git ----
+  ipcMain.handle('git:status', () => gitStatus(requireRoot()))
+  ipcMain.handle('git:commit', (_e, ids: string[], message: string) =>
+    gitCommit(requireRoot(), ids, message)
   )
 
   // ---- 项目 ----

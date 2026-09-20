@@ -1,9 +1,11 @@
 import type {
+  AppSettings,
   BulkUpdatePatch,
   BulkUpdateResult,
   BuildState,
   DevServerState,
   FrontmatterTemplate,
+  GitFileStatus,
   ImageItem,
   ImportImageResult,
   LinkIssue,
@@ -16,8 +18,10 @@ import type {
 
 /** 渲染进程通过 window.api 访问的全部能力（preload contextBridge 暴露） */
 export interface Api {
-  /** 读取最近项目列表 */
-  getSettings(): Promise<{ recentProjects: string[] }>
+  /** 读取应用设置（最近项目 + 主题 + 编辑器字号） */
+  getSettings(): Promise<AppSettings>
+  /** 更新应用偏好（主题/编辑器字号），返回保存后的完整设置 */
+  savePreferences(patch: Partial<Pick<AppSettings, 'theme' | 'editorFontSize'>>): Promise<AppSettings>
   /** 从最近列表移除一条 */
   removeRecentProject(path: string): Promise<void>
   /** 弹出系统文件夹选择框，返回所选路径或 null */
@@ -30,6 +34,11 @@ export interface Api {
   showProjectInFolder(): Promise<void>
   /** 用系统默认浏览器打开外部链接（仅允许 http/https） */
   openExternal(url: string): Promise<void>
+
+  /** 读取文章文件的 git 状态；项目不是 git 仓库时返回 null */
+  getGitStatus(): Promise<{ files: Record<string, GitFileStatus> } | null>
+  /** 提交指定文章文件（仅 stage 给定路径） */
+  commitPosts(ids: string[], message: string): Promise<void>
 
   listPosts(): Promise<PostMeta[]>
   readPost(id: string): Promise<PostDetail>
@@ -68,4 +77,9 @@ export interface Api {
 
   /** 订阅文章列表推送（主进程文件监听检测到外部修改时），返回取消订阅函数 */
   onPostsChanged(cb: (posts: PostMeta[]) => void): () => void
+
+  /** 主进程请求关闭确认（窗口 close 被拦截后触发），返回取消订阅函数 */
+  onAppRequestClose(cb: () => void): () => void
+  /** 确认可以关闭窗口（无脏状态或用户已确认） */
+  confirmAppClose(): Promise<void>
 }

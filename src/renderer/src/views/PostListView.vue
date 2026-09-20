@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Connection, Delete, EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
-import type { BulkUpdateResult, LinkIssue } from '@shared/types'
+import type { BulkUpdateResult, GitFileStatus, LinkIssue } from '@shared/types'
 import { usePostsStore } from '../stores/posts'
 import { useProjectStore } from '../stores/project'
 
@@ -241,8 +241,48 @@ async function removePost(id: string, title: string): Promise<void> {
   }
 }
 
+// ---- git 集成 ----
+const GIT_BADGE: Record<GitFileStatus, { text: string; type: 'warning' | 'success' | 'info' | 'danger' }> = {
+  modified: { text: '修改', type: 'warning' },
+  added: { text: '新增', type: 'success' },
+  deleted: { text: '删除', type: 'danger' },
+  untracked: { text: '未跟踪', type: 'info' }
+}
+const commitDialogVisible = ref(false)
+const commitMessage = ref('')
+const committing = ref(false)
+
+function gitBadge(id: string): { text: string; type: 'warning' | 'success' | 'info' | 'danger' } | null {
+  const s = posts.gitFiles[id]
+  return s ? GIT_BADGE[s] : null
+}
+
+function openCommitDialog(): void {
+  commitMessage.value = `docs: 更新 ${selected.value.length} 篇文章`
+  commitDialogVisible.value = true
+}
+
+async function submitCommit(): Promise<void> {
+  if (!commitMessage.value.trim()) {
+    ElMessage.warning('请填写提交说明')
+    return
+  }
+  committing.value = true
+  try {
+    await posts.commitFiles([...selected.value], commitMessage.value)
+    commitDialogVisible.value = false
+    ElMessage.success(`已提交 ${selected.value.length} 篇文章`)
+    selected.value = []
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  } finally {
+    committing.value = false
+  }
+}
+
 onMounted(() => {
   void posts.load()
+  void posts.loadGitStatus()
 })
 </script>
 
@@ -303,6 +343,9 @@ onMounted(() => {
           <div class="post-title-row">
             <span class="post-title">{{ p.title }}</span>
             <el-tag v-if="p.draft" type="warning" size="small" effect="light">草稿</el-tag>
+            <el-tag v-if="gitBadge(p.id)" :type="gitBadge(p.id)!.type" size="small" effect="plain">
+              {{ gitBadge(p.id)!.text }}
+            </el-tag>
           </div>
           <div v-if="p.description" class="post-desc">{{ p.description }}</div>
           <div class="post-tags">
@@ -331,6 +374,9 @@ onMounted(() => {
         <el-button size="small" @click="bulkSetDraft(false)">发布</el-button>
         <el-button size="small" @click="bulkSetDraft(true)">转草稿</el-button>
         <el-button size="small" @click="openBulkTags">加标签</el-button>
+        <el-button v-if="posts.isGitRepo" size="small" type="primary" plain @click="openCommitDialog">
+          提交
+        </el-button>
         <el-button size="small" type="danger" plain :icon="Delete" @click="bulkDelete">删除</el-button>
         <el-button size="small" text @click="selected = []">取消</el-button>
       </div>
@@ -378,6 +424,22 @@ onMounted(() => {
         </template>
       </template>
     </el-drawer>
+
+    <el-dialog v-model="commitDialogVisible" title="Git 提交所选文章" width="480px">
+      <div class="commit-hint">
+        仅提交选中的 {{ selected.length }} 篇文章（git add 指定文件），不影响其他未提交改动。
+      </div>
+      <el-input
+        v-model="commitMessage"
+        type="textarea"
+        :rows="3"
+        placeholder="提交说明（commit message）"
+      />
+      <template #footer>
+        <el-button @click="commitDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="committing" @click="submitCommit">提交</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="createVisible" title="新建文章" width="520px">
       <el-form label-width="80px" label-position="left">
@@ -469,6 +531,9 @@ onMounted(() => {
   padding: 14px 18px;
   cursor: pointer;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  /* 大列表渲染优化：视口外跳过渲染（高度按经验值参与滚动估算） */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
 }
 .post-item:hover {
   border-color: var(--el-color-primary-light-5);
@@ -564,6 +629,12 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 600;
   margin-right: 4px;
+}
+
+.commit-hint {
+  font-size: 12.5px;
+  color: var(--text-sub);
+  margin-bottom: 10px;
 }
 .bulk-fade-enter-active,
 .bulk-fade-leave-active {

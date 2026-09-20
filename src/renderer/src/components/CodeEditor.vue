@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { EditorState, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
 import { languages } from '@codemirror/language-data'
+import { oneDark } from '@codemirror/theme-one-dark'
 
 const props = defineProps<{
   modelValue: string
@@ -14,6 +15,10 @@ const props = defineProps<{
   language?: 'markdown' | 'yaml'
   /** 粘贴/拖入图片时被调用：保存后返回 markdown 引用文本，返回 null 表示放弃 */
   imageHandler?: (file: File) => Promise<string | null>
+  /** 暗色主题（跟随应用设置） */
+  dark?: boolean
+  /** 编辑器字号（px） */
+  fontSize?: number
 }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'save'): void }>()
 
@@ -21,6 +26,8 @@ const container = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 // 外部同步（加载文章）时的 dispatch 不应触发 dirty 标记
 let syncing = false
+// 暗色主题用 Compartment 动态切换，无需重建编辑器
+const themeCompartment = new Compartment()
 
 function languageExtension(): Extension {
   return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
@@ -47,6 +54,7 @@ onMounted(() => {
       doc: props.modelValue,
       extensions: [
         basicSetup,
+        themeCompartment.of(props.dark ? oneDark : []),
         languageExtension(),
         EditorView.lineWrapping,
         EditorState.readOnly.of(props.readOnly ?? false),
@@ -83,6 +91,13 @@ onMounted(() => {
 })
 
 watch(
+  () => props.dark,
+  (dark) => {
+    view?.dispatch({ effects: themeCompartment.reconfigure(dark ? oneDark : []) })
+  }
+)
+
+watch(
   () => props.modelValue,
   (value) => {
     if (!view) return
@@ -107,7 +122,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="container" class="code-editor"></div>
+  <div ref="container" class="code-editor" :style="fontSize ? { fontSize: `${fontSize}px` } : undefined"></div>
 </template>
 
 <style scoped>

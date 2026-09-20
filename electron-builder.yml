@@ -9,6 +9,8 @@ asar: true
 win:
   target:
     - nsis
+  # 本地构造的 PNG 内嵌 ICO（256px），避免 electron-builder 在线转换图标依赖 GitHub 下载
+  icon: build/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

@@ -244,8 +244,7 @@ onMounted(() => {
 .thumb-wrap {
   height: 130px;
   border-radius: 8px;
-  background:
-    conic-gradient(#f0f1f6 25%, #fff 0 50%, #f0f1f6 0 75%, #fff 0) 0 0/16px 16px;
+  background: var(--thumb-checker);
   display: flex;
   align-items: center;
   justify-content: center;

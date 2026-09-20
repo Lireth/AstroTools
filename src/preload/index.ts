@@ -5,12 +5,16 @@ import type { BuildState, DevServerState, PostMeta } from '../shared/types'
 
 const api: Api = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
+  savePreferences: (patch) => ipcRenderer.invoke('settings:save', patch),
   removeRecentProject: (path) => ipcRenderer.invoke('settings:remove-recent', path),
   selectProjectFolder: () => ipcRenderer.invoke('project:select'),
   openProject: (path) => ipcRenderer.invoke('project:open', path),
   refreshProject: () => ipcRenderer.invoke('project:refresh'),
   showProjectInFolder: () => ipcRenderer.invoke('project:show-in-folder'),
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+
+  getGitStatus: () => ipcRenderer.invoke('git:status'),
+  commitPosts: (ids, message) => ipcRenderer.invoke('git:commit', ids, message),
 
   listPosts: () => ipcRenderer.invoke('posts:list'),
   readPost: (id) => ipcRenderer.invoke('posts:read', id),
@@ -54,7 +58,16 @@ const api: Api = {
     return () => {
       ipcRenderer.removeListener('posts:changed', handler)
     }
-  }
+  },
+
+  onAppRequestClose: (cb) => {
+    const handler = (): void => cb()
+    ipcRenderer.on('app:request-close', handler)
+    return () => {
+      ipcRenderer.removeListener('app:request-close', handler)
+    }
+  },
+  confirmAppClose: () => ipcRenderer.invoke('app:confirm-close')
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { ThemeMode } from '@shared/types'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import { DataAnalysis, Document, Picture, Promotion, Refresh, Right, Search, Setting, SwitchButton, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import CommandPalette from './CommandPalette.vue'
 import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
 import { useEditorStore } from '../stores/editor'
 import { useDevServerStore } from '../stores/devServer'
 import { useBuildStore } from '../stores/build'
+import { useSettingsStore } from '../stores/settings'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,9 +19,11 @@ const posts = usePostsStore()
 const editor = useEditorStore()
 const dev = useDevServerStore()
 const build = useBuildStore()
+const settings = useSettingsStore()
 
 const paletteOpen = ref(false)
 const buildLogOpen = ref(false)
+const settingsOpen = ref(false)
 
 function onGlobalKeydown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
@@ -219,6 +223,10 @@ onBeforeUnmount(() => {
           <el-icon><SwitchButton /></el-icon>
           切换项目
         </button>
+        <button class="nav-item" type="button" @click="settingsOpen = true">
+          <el-icon><Setting /></el-icon>
+          设置
+        </button>
       </nav>
     </aside>
 
@@ -280,6 +288,32 @@ onBeforeUnmount(() => {
           >取消构建</el-button
         >
         <el-button size="small" @click="buildLogOpen = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="settingsOpen" title="设置" width="420px">
+      <el-form label-width="88px" label-position="left">
+        <el-form-item label="主题">
+          <el-radio-group :model-value="settings.theme" @update:model-value="settings.setTheme($event as ThemeMode)">
+            <el-radio-button value="light">浅色</el-radio-button>
+            <el-radio-button value="dark">深色</el-radio-button>
+            <el-radio-button value="system">跟随系统</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="编辑器字号">
+          <el-slider
+            :model-value="settings.editorFontSize"
+            :min="12"
+            :max="20"
+            :step="1"
+            show-input
+            style="width: 100%"
+            @update:model-value="settings.setEditorFontSize($event as number)"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button type="primary" @click="settingsOpen = false">完成</el-button>
       </template>
     </el-dialog>
 
@@ -404,7 +438,7 @@ onBeforeUnmount(() => {
 }
 .tag-chip {
   border: 1px solid var(--border-soft);
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 999px;
   font-size: 12px;
   padding: 3px 10px;
@@ -469,7 +503,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-soft);
   border-radius: 5px;
   padding: 1px 5px;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .content {
@@ -504,7 +538,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   font-size: 12px;
   color: var(--text-sub);
-  background: #f6f7fb;
+  background: var(--bg-soft);
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--border-soft);
@@ -545,7 +579,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-family: ui-monospace, Consolas, monospace;
   color: var(--text-main);
-  background: #f6f7fb;
+  background: var(--bg-soft);
   border-radius: 6px;
   padding: 10px 12px;
   white-space: pre-wrap;

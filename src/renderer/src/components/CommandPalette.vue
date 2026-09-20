@@ -244,6 +244,6 @@ function onInputKeydown(e: KeyboardEvent): void {
   font-size: 11.5px;
   color: #9aa0b0;
   border-top: 1px solid var(--border-soft);
-  background: #fbfbfe;
+  background: var(--bg-panel-alt);
 }
 </style>
