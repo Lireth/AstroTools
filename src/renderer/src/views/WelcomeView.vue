@@ -113,37 +113,36 @@ onMounted(() => {
   width: 84px;
   height: 84px;
   margin: 0 auto 20px;
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   background: var(--brand-gradient);
   color: #fff;
   font-size: 44px;
-  font-weight: 800;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16px 40px rgba(124, 92, 252, 0.35);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .hero-title {
   font-size: 32px;
   margin: 0 0 10px;
-  letter-spacing: 0.5px;
+  letter-spacing: -0.5px;
+  font-weight: 700;
 }
 .hero-sub {
   color: var(--text-sub);
   margin: 0 0 28px;
-  font-size: 15px;
+  font-size: var(--fs-md);
 }
 .select-btn {
   height: 46px;
   padding: 0 28px;
-  font-size: 15px;
-  background: var(--brand-gradient);
-  border: none;
+  font-size: var(--fs-md);
 }
 .hero-hint {
   margin-top: 16px;
-  font-size: 12.5px;
-  color: #9aa0b0;
+  font-size: var(--fs-sm);
+  color: var(--text-sub);
 }
 
 .recents {
@@ -151,7 +150,7 @@ onMounted(() => {
   width: min(720px, 100%);
 }
 .recents-title {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text-sub);
   margin-bottom: 12px;
@@ -167,16 +166,23 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
+  transition:
+    box-shadow var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+.recent-item:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
 }
 .recent-info {
   min-width: 0;
 }
 .recent-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .recent-path {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   overflow: hidden;
   text-overflow: ellipsis;

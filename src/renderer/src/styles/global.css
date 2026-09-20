@@ -1,54 +1,150 @@
+/* ============================================================
+   设计 Token 体系（macOS 原生风）
+   亮/暗变量严格成对定义，所有视图样式仅允许引用 token
+   ============================================================ */
 :root {
-  /* 主色：Astro 风格的紫罗兰，渐变搭配橙色 */
-  --brand-primary: #7c5cfc;
-  --brand-secondary: #ff5d01;
-  --brand-gradient: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 55%, #ff5d01 130%);
-
-  --bg-page: #f4f5fa;
+  /* 背景 */
+  --bg-page: #f5f5f7;
   --bg-panel: #ffffff;
   /* 次级面板（折叠头、工具条底色） */
-  --bg-panel-alt: #fbfbfe;
+  --bg-panel-alt: #f9f9fb;
   /* 更弱的底色（日志框、胶囊等） */
-  --bg-soft: #f6f7fb;
+  --bg-soft: #f2f2f7;
   /* 输入类控件与代码编辑器底色 */
   --bg-card: #ffffff;
-  --border-soft: #e8eaf1;
-  --text-main: #1f2430;
-  --text-sub: #6b7280;
+  --bg-code: #f6f8fa;
+
+  /* 边框 */
+  --border-soft: #e5e5ea;
+  --border-strong: #d2d2d7;
+
+  /* 文字 */
+  --text-main: #1d1d1f;
+  --text-sub: #86868b;
+
+  /* 主色（Apple 系统蓝） */
+  --el-color-primary: #007aff;
+  --el-color-primary-light-3: #4da3ff;
+  --el-color-primary-light-5: #80c0ff;
+  --el-color-primary-light-7: #b3d9ff;
+  --el-color-primary-light-8: #cce6ff;
+  --el-color-primary-light-9: #e6f2ff;
+  --el-color-primary-dark-2: #0062cc;
+
+  /* 语义色 */
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+  /* 品牌点缀（Astro 橙），仅 logo / hero 使用 */
+  --accent: #ff5d01;
+  --brand-gradient: linear-gradient(135deg, #ff5d01 0%, #ff9f0a 100%);
+
+  /* 遮罩 */
+  --overlay-bg: rgba(0, 0, 0, 0.32);
+
+  /* 毛玻璃侧栏底色 */
+  --sidebar-bg: rgba(255, 255, 255, 0.72);
+
   /* 图片缩略图棋盘格（透明背景指示） */
   --thumb-checker: conic-gradient(#f0f1f6 25%, #fff 0 50%, #f0f1f6 0 75%, #fff 0) 0 0/16px 16px;
 
-  --el-color-primary: #7c5cfc;
-  --el-color-primary-light-3: #9d82fd;
-  --el-color-primary-light-5: #b7a5fe;
-  --el-color-primary-light-7: #d6cbfe;
-  --el-color-primary-light-8: #e5ddfe;
-  --el-color-primary-light-9: #f3efff;
-  --el-color-primary-dark-2: #6349ca;
+  /* 字体 */
+  --font-ui:
+    'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', system-ui,
+    sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, 'JetBrains Mono', ui-monospace, monospace;
 
-  font-family:
-    'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+  /* 字号阶梯 */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13.5px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 22px;
+
+  /* 圆角阶梯 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* 阴影阶梯 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.18);
+
+  /* 动效 */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Element Plus 变量映射 */
+  --el-font-family: var(--font-ui);
+  --el-font-size-base: 13px;
+  --el-font-size-small: 12px;
+  --el-font-size-extra-small: 11px;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: var(--radius-full);
+  --el-border-color: var(--border-strong);
+  --el-border-color-light: var(--border-soft);
+  --el-border-color-lighter: var(--border-soft);
+  --el-border-color-extra-light: var(--border-soft);
+  --el-fill-color: var(--bg-soft);
+  --el-fill-color-light: var(--bg-soft);
+  --el-fill-color-lighter: var(--bg-panel-alt);
+  --el-fill-color-blank: var(--bg-card);
+  --el-text-color-primary: var(--text-main);
+  --el-text-color-regular: var(--text-main);
+  --el-text-color-secondary: var(--text-sub);
+  --el-bg-color: var(--bg-panel);
+  --el-bg-color-overlay: var(--bg-panel);
+  --el-bg-color-page: var(--bg-page);
+  --el-box-shadow: var(--shadow-modal);
+  --el-box-shadow-light: var(--shadow-hover);
+
+  font-family: var(--font-ui);
   color: var(--text-main);
 }
 
 /* 暗色模式：Element Plus 暗色变量 + 自定义调色板 */
 html.dark {
-  --bg-page: #16171f;
-  --bg-panel: #1f212b;
-  --bg-panel-alt: #23252f;
-  --bg-soft: #1e202a;
-  --bg-card: #1b1d26;
-  --border-soft: #2e3140;
-  --text-main: #e5e7f0;
-  --text-sub: #9aa0b0;
+  --bg-page: #1c1c1e;
+  --bg-panel: #2c2c2e;
+  --bg-panel-alt: #232326;
+  --bg-soft: #232325;
+  --bg-card: #2c2c2e;
+  --bg-code: #161b22;
+
+  --border-soft: #38383a;
+  --border-strong: #48484a;
+
+  --text-main: #f5f5f7;
+  --text-sub: #98989d;
+
+  --el-color-primary: #0a84ff;
+  --el-color-primary-light-3: #2170c9;
+  --el-color-primary-light-5: #1a5a9f;
+  --el-color-primary-light-7: #143f70;
+  --el-color-primary-light-8: #103057;
+  --el-color-primary-light-9: #0c2240;
+  --el-color-primary-dark-2: #409cff;
+
+  --success: #30d158;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --sidebar-bg: rgba(28, 28, 30, 0.68);
+
   --thumb-checker: conic-gradient(#262936 25%, #1f212b 0 50%, #262936 0 75%, #1f212b 0) 0 0/16px
     16px;
-  --el-color-primary-light-3: #6349ca;
-  --el-color-primary-light-5: #5640b0;
-  --el-color-primary-light-7: #44347f;
-  --el-color-primary-light-8: #392c69;
-  --el-color-primary-light-9: #2c2450;
-  --el-color-primary-dark-2: #9d82fd;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -67,6 +163,9 @@ body {
   background: var(--bg-page);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  transition:
+    background-color var(--dur-base) var(--ease),
+    color var(--dur-base) var(--ease);
 }
 
 /* 细滚动条 */
@@ -75,52 +174,38 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d3d6e0;
-  border-radius: 4px;
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #bcbfcb;
+  background: var(--text-sub);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
-}
-html.dark ::-webkit-scrollbar-thumb {
-  background: #3a3e4f;
-}
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #4a4f63;
 }
 
 /* 通用卡片 */
 .panel {
   background: var(--bg-panel);
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
-/* 文章预览排版（markdown-it 输出） */
+/* 文章预览排版（markdown-it 输出），全部 token 驱动 */
 .md-preview {
-  font-size: 15px;
+  font-size: var(--fs-md);
   line-height: 1.75;
-  color: #2a3040;
+  color: var(--text-main);
   word-break: break-word;
-}
-html.dark .md-preview {
-  color: #c9cede;
 }
 .md-preview h1,
 .md-preview h2,
 .md-preview h3,
 .md-preview h4 {
-  color: #171c28;
+  color: var(--text-main);
   line-height: 1.4;
   margin: 1.2em 0 0.6em;
-}
-html.dark .md-preview h1,
-html.dark .md-preview h2,
-html.dark .md-preview h3,
-html.dark .md-preview h4 {
-  color: #eceef6;
 }
 .md-preview h1 {
   font-size: 1.7em;
@@ -133,33 +218,21 @@ html.dark .md-preview h4 {
   padding-bottom: 0.25em;
 }
 .md-preview pre {
-  background: #f6f8fa;
+  background: var(--bg-code);
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 14px 16px;
   overflow: auto;
   font-size: 13px;
 }
-html.dark .md-preview pre {
-  background: #171923;
-}
-html.dark .md-preview code {
-  background: #262936;
-}
-html.dark .md-preview blockquote {
-  background: #1d1f2a;
-}
-html.dark .md-preview th {
-  background: #22242f;
-}
 .md-preview pre code {
-  font-family: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   background: transparent;
   padding: 0;
 }
 .md-preview code {
-  font-family: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
-  background: #f1f2f8;
+  font-family: var(--font-mono);
+  background: var(--bg-soft);
   border-radius: 4px;
   padding: 0.15em 0.4em;
   font-size: 0.9em;
@@ -169,12 +242,12 @@ html.dark .md-preview th {
   padding: 0.2em 1em;
   border-left: 4px solid var(--el-color-primary-light-7);
   color: var(--text-sub);
-  background: #fafafe;
-  border-radius: 0 8px 8px 0;
+  background: var(--bg-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .md-preview img {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .md-preview table {
   border-collapse: collapse;
@@ -188,10 +261,58 @@ html.dark .md-preview th {
   text-align: left;
 }
 .md-preview th {
-  background: #f8f9fd;
+  background: var(--bg-soft);
 }
 .md-preview input[type='checkbox'] {
   margin-right: 0.4em;
+}
+
+/* 暗色下代码高亮：以 github-dark 配色静态覆盖 hljs token，零依赖无闪烁 */
+html.dark .md-preview .hljs {
+  color: #c9d1d9;
+}
+html.dark .md-preview .hljs-keyword,
+html.dark .md-preview .hljs-selector-tag,
+html.dark .md-preview .hljs-literal,
+html.dark .md-preview .hljs-section,
+html.dark .md-preview .hljs-doctag,
+html.dark .md-preview .hljs-type,
+html.dark .md-preview .hljs-name,
+html.dark .md-preview .hljs-strong {
+  color: #ff7b72;
+}
+html.dark .md-preview .hljs-string,
+html.dark .md-preview .hljs-title,
+html.dark .md-preview .hljs-attr,
+html.dark .md-preview .hljs-template-tag,
+html.dark .md-preview .hljs-addition {
+  color: #a5d6ff;
+}
+html.dark .md-preview .hljs-comment,
+html.dark .md-preview .hljs-quote,
+html.dark .md-preview .hljs-deletion,
+html.dark .md-preview .hljs-meta {
+  color: #8b949e;
+}
+html.dark .md-preview .hljs-number,
+html.dark .md-preview .hljs-symbol,
+html.dark .md-preview .hljs-bullet,
+html.dark .md-preview .hljs-variable,
+html.dark .md-preview .hljs-template-variable,
+html.dark .md-preview .hljs-params,
+html.dark .md-preview .hljs-regexp,
+html.dark .md-preview .hljs-selector-class,
+html.dark .md-preview .hljs-selector-id,
+html.dark .md-preview .hljs-selector-attr,
+html.dark .md-preview .hljs-selector-pseudo {
+  color: #79c0ff;
+}
+html.dark .md-preview .hljs-built_in,
+html.dark .md-preview .hljs-class .hljs-title {
+  color: #ffa657;
+}
+html.dark .md-preview .hljs-emphasis {
+  font-style: italic;
 }
 
 /* CodeMirror 容器 */
@@ -199,7 +320,7 @@ html.dark .md-preview th {
   height: 100%;
 }
 .cm-editor .cm-scroller {
-  font-family: 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 13.5px;
   line-height: 1.7;
 }

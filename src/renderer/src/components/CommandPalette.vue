@@ -137,34 +137,36 @@ function onInputKeydown(e: KeyboardEvent): void {
 
 <template>
   <teleport to="body">
-    <div v-if="modelValue" class="palette-mask" @mousedown.self="close">
-      <div class="palette panel">
-        <input
-          v-model="query"
-          class="palette-input"
-          placeholder="搜索文章标题，或输入命令…"
-          @keydown="onInputKeydown"
-        />
-        <div class="palette-list">
-          <template v-if="rows.length">
-            <button
-              v-for="(row, i) in rows"
-              :key="row.key"
-              class="palette-row"
-              :class="{ active: i === activeIndex }"
-              type="button"
-              @mouseenter="activeIndex = i"
-              @click="runRow(row)"
-            >
-              <span class="palette-label">{{ row.label }}</span>
-              <span class="palette-hint" :class="row.kind">{{ row.hint }}</span>
-            </button>
-          </template>
-          <div v-else class="palette-empty">没有匹配的文章或命令</div>
+    <transition name="palette">
+      <div v-if="modelValue" class="palette-mask" @mousedown.self="close">
+        <div class="palette panel">
+          <input
+            v-model="query"
+            class="palette-input"
+            placeholder="搜索文章标题，或输入命令…"
+            @keydown="onInputKeydown"
+          />
+          <div class="palette-list">
+            <template v-if="rows.length">
+              <button
+                v-for="(row, i) in rows"
+                :key="row.key"
+                class="palette-row"
+                :class="{ active: i === activeIndex }"
+                type="button"
+                @mouseenter="activeIndex = i"
+                @click="runRow(row)"
+              >
+                <span class="palette-label">{{ row.label }}</span>
+                <span class="palette-hint" :class="row.kind">{{ row.hint }}</span>
+              </button>
+            </template>
+            <div v-else class="palette-empty">没有匹配的文章或命令</div>
+          </div>
+          <div class="palette-footer">↑↓ 选择 · Enter 打开 · Esc 关闭</div>
         </div>
-        <div class="palette-footer">↑↓ 选择 · Enter 打开 · Esc 关闭</div>
       </div>
-    </div>
+    </transition>
   </teleport>
 </template>
 
@@ -173,7 +175,7 @@ function onInputKeydown(e: KeyboardEvent): void {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(30, 27, 55, 0.32);
+  background: var(--overlay-bg);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -181,17 +183,18 @@ function onInputKeydown(e: KeyboardEvent): void {
 }
 .palette {
   width: min(560px, calc(100vw - 48px));
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 18px 50px rgba(30, 27, 55, 0.25);
+  box-shadow: var(--shadow-modal);
 }
 .palette-input {
   border: none;
   outline: none;
   padding: 15px 18px;
-  font-size: 15px;
+  font-size: var(--fs-md);
+  font-family: var(--font-ui);
   color: var(--text-main);
   border-bottom: 1px solid var(--border-soft);
   background: transparent;
@@ -208,15 +211,17 @@ function onInputKeydown(e: KeyboardEvent): void {
   gap: 10px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 9px 12px;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
+  font-family: var(--font-ui);
   color: var(--text-main);
   cursor: pointer;
   text-align: left;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .palette-row.active {
-  background: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
   color: var(--el-color-primary);
 }
 .palette-label {
@@ -228,8 +233,8 @@ function onInputKeydown(e: KeyboardEvent): void {
 }
 .palette-hint {
   flex-shrink: 0;
-  font-size: 11px;
-  border-radius: 999px;
+  font-size: var(--fs-xs);
+  border-radius: var(--radius-full);
   padding: 1px 8px;
   color: var(--text-sub);
   background: var(--border-soft);
@@ -241,15 +246,45 @@ function onInputKeydown(e: KeyboardEvent): void {
 .palette-empty {
   padding: 28px 0;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-sub);
 }
 .palette-footer {
   flex-shrink: 0;
   padding: 8px 16px;
-  font-size: 11.5px;
-  color: #9aa0b0;
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
   border-top: 1px solid var(--border-soft);
   background: var(--bg-panel-alt);
+}
+
+/* 进出场动画：遮罩淡入 + 面板缩放上浮（macOS Spotlight 风格） */
+.palette-enter-active {
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.palette-leave-active {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.palette-enter-active .palette {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+.palette-leave-active .palette {
+  transition:
+    transform var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+.palette-enter-from,
+.palette-leave-to {
+  opacity: 0;
+}
+.palette-enter-from .palette {
+  transform: scale(0.96) translateY(8px);
+  opacity: 0;
+}
+.palette-leave-to .palette {
+  transform: scale(0.98) translateY(4px);
+  opacity: 0;
 }
 </style>

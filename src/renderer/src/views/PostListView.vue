@@ -559,7 +559,7 @@ onMounted(() => {
   flex: 1;
 }
 .count-hint {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
 }
 
@@ -585,15 +585,17 @@ onMounted(() => {
   padding: 14px 18px;
   cursor: pointer;
   transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+    box-shadow var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
   /* 大列表渲染优化：视口外跳过渲染（高度按经验值参与滚动估算） */
   content-visibility: auto;
   contain-intrinsic-size: auto 96px;
 }
 .post-item:hover {
   border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 4px 16px rgba(124, 92, 252, 0.08);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
 }
 
 .post-main {
@@ -610,13 +612,13 @@ onMounted(() => {
 }
 .post-title {
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .post-desc {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-sub);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -629,12 +631,13 @@ onMounted(() => {
   gap: 6px;
 }
 .post-tag {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 1px 8px;
   cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .post-tag:hover {
   background: var(--el-color-primary-light-7);
@@ -649,14 +652,14 @@ onMounted(() => {
   gap: 8px;
 }
 .post-date {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
 }
 .post-actions {
   display: flex;
   gap: 6px;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .post-item:hover .post-actions {
   opacity: 1;
@@ -670,46 +673,47 @@ onMounted(() => {
 }
 
 .bulk-bar {
-  position: fixed;
-  bottom: 24px;
-  left: calc(50% + 132px);
-  transform: translateX(-50%);
+  /* sticky 居中：跟随内容区宽度居中，滚动时常驻视口底部 */
+  position: sticky;
+  bottom: 16px;
+  width: fit-content;
+  margin: 12px auto 0;
   z-index: 30;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--shadow-modal);
 }
 .bulk-count {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
   margin-right: 4px;
 }
 
 .commit-hint {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   margin-bottom: 10px;
 }
 .bulk-fade-enter-active,
 .bulk-fade-leave-active {
   transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+    opacity var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
 }
 .bulk-fade-enter-from,
 .bulk-fade-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(8px);
+  transform: translateY(8px);
 }
 
 .issue-hint {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-sub);
 }
 .issue-summary {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   margin-bottom: 12px;
 }
@@ -722,7 +726,7 @@ onMounted(() => {
 }
 .issue-post {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -732,22 +736,22 @@ onMounted(() => {
   color: var(--el-color-primary);
 }
 .issue-count {
-  font-size: 11px;
-  background: #fef2f2;
-  color: #b91c1c;
-  border-radius: 999px;
+  font-size: var(--fs-xs);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  border-radius: var(--radius-full);
   padding: 0 7px;
 }
 .issue-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   min-width: 0;
 }
 .issue-target {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   color: var(--text-main);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -755,9 +759,9 @@ onMounted(() => {
   min-width: 0;
 }
 .issue-reason {
-  color: #b91c1c;
+  color: var(--danger);
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 </style>

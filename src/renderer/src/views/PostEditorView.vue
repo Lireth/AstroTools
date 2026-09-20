@@ -215,7 +215,6 @@ onBeforeUnmount(() => {
                 type="date"
                 value-format="YYYY-MM-DD"
                 placeholder="选择日期"
-                style="width: 100%"
                 @change="editor.markTouched('date')"
               />
             </div>
@@ -228,7 +227,6 @@ onBeforeUnmount(() => {
                 allow-create
                 default-first-option
                 placeholder="输入后回车创建"
-                style="width: 100%"
                 @change="editor.markTouched('tags')"
               >
                 <el-option
@@ -330,7 +328,7 @@ onBeforeUnmount(() => {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--warning);
   flex-shrink: 0;
 }
 .title-input {
@@ -339,41 +337,43 @@ onBeforeUnmount(() => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 19px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--text-main);
   padding: 4px 2px;
+  font-family: var(--font-ui);
 }
 .title-input::placeholder {
-  color: #b3b8c6;
+  color: var(--text-sub);
+  opacity: 0.7;
 }
 .word-count {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   flex-shrink: 0;
 }
 
 .meta-collapse {
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-soft);
   --el-collapse-border-color: var(--border-soft);
 }
 .meta-collapse :deep(.el-collapse-item__header) {
   padding: 0 14px;
   background: var(--bg-panel-alt);
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 .meta-collapse :deep(.el-collapse-item__wrap) {
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .meta-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .meta-file {
   margin-left: 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
 }
 .yaml-switch-wrap {
@@ -388,12 +388,12 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 .yaml-alert {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .yaml-editor-wrap {
   height: 260px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-card);
 }
@@ -410,9 +410,15 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 .meta-item label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   font-weight: 600;
+}
+/* 收敛原内联 width:100% */
+.meta-item :deep(.el-date-editor.el-input),
+.meta-item :deep(.el-date-editor.el-input__wrapper),
+.meta-item :deep(.el-select) {
+  width: 100%;
 }
 .meta-item.span-2 {
   grid-column: span 2;
@@ -457,9 +463,10 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 .editor-body.no-preview .editor-pane {
   flex: 1;
@@ -469,15 +476,16 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .preview-label {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-soft);

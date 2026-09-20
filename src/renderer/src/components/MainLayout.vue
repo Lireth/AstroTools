@@ -292,7 +292,11 @@ onBeforeUnmount(() => {
         >
       </header>
       <main class="view">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="page" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </main>
     </div>
 
@@ -348,18 +352,39 @@ onBeforeUnmount(() => {
 .layout {
   display: flex;
   height: 100vh;
+  /* 全幅渐变底：为毛玻璃提供可模糊的背景层次 */
+  background:
+    radial-gradient(
+      1200px 800px at 80% -10%,
+      color-mix(in srgb, var(--el-color-primary) 6%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 600px at -10% 110%,
+      color-mix(in srgb, var(--accent) 5%, transparent),
+      transparent 55%
+    ),
+    var(--bg-page);
 }
 
 .sidebar {
   width: 264px;
   flex-shrink: 0;
-  background: var(--bg-panel);
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border-right: 1px solid var(--border-soft);
   display: flex;
   flex-direction: column;
-  padding: 14px;
+  padding: 16px 14px;
   gap: 14px;
   overflow-y: auto;
+}
+/* 不支持 backdrop-filter 时降级为实色 */
+@supports not (backdrop-filter: blur(1px)) {
+  .sidebar {
+    background: var(--bg-panel);
+  }
 }
 
 .brand {
@@ -370,7 +395,7 @@ onBeforeUnmount(() => {
 .brand-logo {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--brand-gradient);
   color: #fff;
   font-weight: 700;
@@ -378,23 +403,31 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow-card);
 }
 .brand-name {
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-md);
+  letter-spacing: -0.2px;
 }
 
 .project-card {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-card);
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: box-shadow var(--dur-base) var(--ease);
+}
+.project-card:hover {
+  box-shadow: var(--shadow-hover);
 }
 .project-name {
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--fs-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -405,14 +438,14 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 .chip {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 8px;
 }
 .project-site {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--el-color-primary);
   text-decoration: none;
   overflow: hidden;
@@ -425,7 +458,7 @@ onBeforeUnmount(() => {
 .project-stats {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
 }
 .project-stats b {
@@ -433,7 +466,7 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 .draft-num b {
-  color: #d97706;
+  color: var(--warning);
 }
 .project-actions {
   display: flex;
@@ -450,7 +483,7 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .section-title {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   font-weight: 600;
 }
@@ -462,15 +495,21 @@ onBeforeUnmount(() => {
 .tag-chip {
   border: 1px solid var(--border-soft);
   background: var(--bg-card);
-  border-radius: 999px;
-  font-size: 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-sm);
   padding: 3px 10px;
   cursor: pointer;
   color: var(--text-main);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
 .tag-chip:hover {
   border-color: var(--el-color-primary-light-5);
   color: var(--el-color-primary);
+  transform: translateY(-1px);
 }
 .tag-chip.active {
   background: var(--el-color-primary);
@@ -479,7 +518,7 @@ onBeforeUnmount(() => {
 }
 .tag-count {
   opacity: 0.65;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .draft-switch {
@@ -499,18 +538,22 @@ onBeforeUnmount(() => {
   gap: 10px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 9px 12px;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
+  font-family: var(--font-ui);
   color: var(--text-main);
   cursor: pointer;
   text-align: left;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .nav-item:hover {
-  background: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--text-main) 6%, transparent);
 }
 .nav-item.active {
-  background: var(--el-color-primary-light-9);
+  background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
   color: var(--el-color-primary);
   font-weight: 600;
 }
@@ -543,13 +586,21 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 0 18px;
-  background: var(--bg-panel);
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border-bottom: 1px solid var(--border-soft);
 }
+@supports not (backdrop-filter: blur(1px)) {
+  .topbar {
+    background: var(--bg-panel);
+  }
+}
 .topbar-title {
-  font-size: 16px;
+  font-size: var(--fs-md);
   margin: 0;
   font-weight: 700;
+  letter-spacing: -0.2px;
 }
 .topbar-spacer {
   flex: 1;
@@ -559,51 +610,52 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-sub);
   background: var(--bg-soft);
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border-soft);
 }
 .dev-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: var(--text-sub);
+  transition: background-color var(--dur-base) var(--ease);
 }
 .dev-running .dev-dot {
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
 }
 .dev-starting .dev-dot,
 .dev-stopping .dev-dot {
-  background: #f59e0b;
+  background: var(--warning);
   animation: blink 1s infinite;
 }
 .dev-error .dev-dot {
-  background: #ef4444;
+  background: var(--danger);
 }
 .build-pill {
   cursor: pointer;
 }
 .build-building .dev-dot {
-  background: #f59e0b;
+  background: var(--warning);
   animation: blink 1s infinite;
 }
 .build-done .dev-dot {
-  background: #10b981;
+  background: var(--success);
 }
 .build-error .dev-dot {
-  background: #ef4444;
+  background: var(--danger);
 }
 .build-log {
   margin: 0;
-  font-size: 12px;
-  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
   color: var(--text-main);
   background: var(--bg-soft);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   white-space: pre-wrap;
   word-break: break-all;
@@ -620,5 +672,25 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow: auto;
   padding: 18px;
+}
+
+/* 页面切换过渡 */
+.page-enter-active {
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.page-leave-active {
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
 }
 </style>
