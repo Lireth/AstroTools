@@ -103,6 +103,18 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 48px 24px;
+  /* 顶部主色光晕 + 右下品牌橙微光，增强欢迎页氛围 */
+  background:
+    radial-gradient(
+      900px 480px at 50% -8%,
+      color-mix(in srgb, var(--el-color-primary) 9%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      700px 420px at 88% 112%,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 60%
+    );
 }
 
 .hero {

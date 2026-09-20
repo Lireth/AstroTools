@@ -73,20 +73,40 @@ onMounted(() => {
   <div class="dashboard">
     <div class="stat-cards">
       <div class="stat-card panel">
-        <div class="stat-num">{{ posts.posts.length }}</div>
-        <div class="stat-label">文章总数</div>
+        <div class="stat-icon">
+          <el-icon :size="20"><Document /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ posts.posts.length }}</div>
+          <div class="stat-label">文章总数</div>
+        </div>
       </div>
       <div class="stat-card panel">
-        <div class="stat-num draft">{{ drafts.length }}</div>
-        <div class="stat-label">草稿</div>
+        <div class="stat-icon warning">
+          <el-icon :size="20"><EditPen /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ drafts.length }}</div>
+          <div class="stat-label">草稿</div>
+        </div>
       </div>
       <div class="stat-card panel">
-        <div class="stat-num">{{ formatWords(totalWords) }}</div>
-        <div class="stat-label">正文总字数</div>
+        <div class="stat-icon">
+          <el-icon :size="20"><Collection /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ formatWords(totalWords) }}</div>
+          <div class="stat-label">正文总字数</div>
+        </div>
       </div>
       <div class="stat-card panel">
-        <div class="stat-num">{{ formatDate(latestDate) }}</div>
-        <div class="stat-label">最近发布</div>
+        <div class="stat-icon muted">
+          <el-icon :size="20"><Clock /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-num">{{ formatDate(latestDate) }}</div>
+          <div class="stat-label">最近发布</div>
+        </div>
       </div>
     </div>
 
@@ -175,6 +195,9 @@ onMounted(() => {
   gap: 12px;
 }
 .stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   padding: 16px 18px;
   transition:
     box-shadow var(--dur-base) var(--ease),
@@ -184,14 +207,35 @@ onMounted(() => {
   box-shadow: var(--shadow-hover);
   transform: translateY(-1px);
 }
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+.stat-icon.warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}
+.stat-icon.muted {
+  background: var(--bg-soft);
+  color: var(--text-sub);
+}
+.stat-info {
+  min-width: 0;
+}
 .stat-num {
   font-size: var(--fs-xl);
   font-weight: 700;
   letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-main);
-}
-.stat-num.draft {
-  color: var(--warning);
+  line-height: 1.2;
 }
 .stat-label {
   margin-top: 4px;

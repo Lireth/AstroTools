@@ -616,6 +616,10 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+.post-item:hover .post-title {
+  color: var(--el-color-primary);
 }
 .post-desc {
   font-size: var(--fs-base);
@@ -654,6 +658,7 @@ onMounted(() => {
 .post-date {
   font-size: var(--fs-sm);
   color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
 }
 .post-actions {
   display: flex;
