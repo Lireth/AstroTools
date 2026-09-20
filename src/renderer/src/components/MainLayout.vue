@@ -141,6 +141,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  dev.dispose()
+  build.dispose()
+  posts.disposeExternalSync()
 })
 </script>
 

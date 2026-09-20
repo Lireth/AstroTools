@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import MainLayout from './components/MainLayout.vue'
@@ -35,10 +35,18 @@ async function handleRequestClose(): Promise<void> {
   await window.api.confirmAppClose()
 }
 
+// 注册与卸载配对：组件销毁时解除主进程关闭请求的监听
+let removeRequestClose: (() => void) | null = null
+
 onMounted(() => {
-  window.api.onAppRequestClose(() => {
+  removeRequestClose = window.api.onAppRequestClose(() => {
     void handleRequestClose()
   })
+})
+
+onBeforeUnmount(() => {
+  removeRequestClose?.()
+  removeRequestClose = null
 })
 </script>
 

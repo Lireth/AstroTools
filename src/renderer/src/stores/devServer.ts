@@ -14,6 +14,12 @@ export const useDevServerStore = defineStore('devServer', () => {
     })
   }
 
+  /** 布局卸载时调用，解除主进程状态订阅 */
+  function dispose(): void {
+    unsubscribe?.()
+    unsubscribe = null
+  }
+
   async function start(): Promise<void> {
     await window.api.startDevServer()
   }
@@ -22,5 +28,5 @@ export const useDevServerStore = defineStore('devServer', () => {
     await window.api.stopDevServer()
   }
 
-  return { state, init, start, stop }
+  return { state, init, dispose, start, stop }
 })

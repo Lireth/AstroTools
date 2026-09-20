@@ -14,6 +14,12 @@ export const useBuildStore = defineStore('build', () => {
     })
   }
 
+  /** 布局卸载时调用，解除主进程构建状态订阅 */
+  function dispose(): void {
+    unsubscribe?.()
+    unsubscribe = null
+  }
+
   async function start(): Promise<void> {
     await window.api.startBuild()
   }
@@ -22,5 +28,5 @@ export const useBuildStore = defineStore('build', () => {
     await window.api.stopBuild()
   }
 
-  return { state, init, start, stop }
+  return { state, init, dispose, start, stop }
 })

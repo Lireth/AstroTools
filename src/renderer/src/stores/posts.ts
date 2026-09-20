@@ -34,6 +34,12 @@ export const usePostsStore = defineStore('posts', () => {
     })
   }
 
+  /** 布局卸载时调用，解除外部修改推送订阅 */
+  function disposeExternalSync(): void {
+    unsubscribeExternal?.()
+    unsubscribeExternal = null
+  }
+
   // ---- git 集成 ----
   const gitFiles = ref<Record<string, GitFileStatus>>({})
   const isGitRepo = ref(false)
@@ -198,6 +204,7 @@ export const usePostsStore = defineStore('posts', () => {
     reload,
     invalidate,
     initExternalSync,
+    disposeExternalSync,
     gitFiles,
     isGitRepo,
     loadGitStatus,
