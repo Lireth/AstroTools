@@ -166,7 +166,7 @@ export function registerIpcHandlers(): void {
     setCurrentProject(info)
     if (previousRoot && previousRoot !== path) clearPostCache(previousRoot)
     void startPostsWatch(path)
-    addRecentProject(app.getPath('userData'), path)
+    await addRecentProject(app.getPath('userData'), path)
     return info
   })
 
