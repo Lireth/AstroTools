@@ -1,7 +1,15 @@
+import { watch, type FSWatcher } from 'node:fs'
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
-import { discoverCollections, readProjectInfo, validateAstroProject } from '../services/astroProject'
+import {
+  contentConfigCandidates,
+  discoverCollections,
+  readProjectInfo,
+  validateAstroProject
+} from '../services/astroProject'
+import { BuildRunner } from '../services/buildRunner'
 import { DevServerManager } from '../services/devServer'
-import { importImage, listImages, saveImage } from '../services/imageService'
+import { deleteImage, findUnusedImages, importImage, listImages, saveImage } from '../services/imageService'
+import { pathExists } from '../services/paths'
 import {
   bulkUpdatePosts,
   buildFrontmatterTemplate,
@@ -33,10 +41,72 @@ const IMAGE_FILTER = {
 }
 
 let devManager: DevServerManager | null = null
+let buildRunner: BuildRunner | null = null
+
+// ---- 文章文件监听（外部修改自动刷新列表） ----
+let postsWatchers: FSWatcher[] = []
+let rescanTimer: NodeJS.Timeout | null = null
+let watchingRoot: string | null = null
+
+function stopPostsWatch(): void {
+  if (rescanTimer) {
+    clearTimeout(rescanTimer)
+    rescanTimer = null
+  }
+  for (const w of postsWatchers) {
+    try {
+      w.close()
+    } catch {
+      // 忽略已关闭的 watcher
+    }
+  }
+  postsWatchers = []
+  watchingRoot = null
+}
+
+async function startPostsWatch(root: string): Promise<void> {
+  stopPostsWatch()
+  watchingRoot = root
+
+  // 防抖重扫：git pull / 其他编辑器的连续改动合并为一次增量扫描并推送
+  const rescanAndPush = async (): Promise<void> => {
+    if (watchingRoot !== root) return
+    try {
+      const collections = await discoverCollections(root, { force: true })
+      const posts = await scanPosts(root, collections)
+      getMainWindow()?.webContents.send('posts:changed', posts)
+    } catch {
+      // 项目可能在切换中，忽略
+    }
+  }
+  const schedule = (): void => {
+    if (rescanTimer) clearTimeout(rescanTimer)
+    rescanTimer = setTimeout(() => {
+      rescanTimer = null
+      void rescanAndPush()
+    }, 500)
+  }
+
+  const targets = [
+    ...(await discoverCollections(root)).map((c) => c.dir),
+    ...contentConfigCandidates(root)
+  ]
+  for (const t of targets) {
+    if (!(await pathExists(t))) continue
+    try {
+      postsWatchers.push(watch(t, { recursive: true }, schedule))
+    } catch {
+      // 单个目标监听失败不影响整体
+    }
+  }
+}
 
 export function registerIpcHandlers(): void {
   devManager = new DevServerManager((state) => {
     getMainWindow()?.webContents.send('dev:state', state)
+  })
+  buildRunner = new BuildRunner((state) => {
+    getMainWindow()?.webContents.send('build:state', state)
   })
 
   // ---- 设置 / 最近项目 ----
@@ -64,6 +134,7 @@ export function registerIpcHandlers(): void {
     const info = await readProjectInfo(path)
     setCurrentProject(info)
     if (previousRoot && previousRoot !== path) clearPostCache(previousRoot)
+    void startPostsWatch(path)
     addRecentProject(app.getPath('userData'), path)
     return info
   })
@@ -131,16 +202,32 @@ export function registerIpcHandlers(): void {
     const result = await dialog.showOpenDialog(win, {
       title: '选择要导入的图片',
       filters: [IMAGE_FILTER],
-      properties: ['openFile']
+      properties: ['openFile', 'multiSelections']
     })
     if (result.canceled || result.filePaths.length === 0) return null
-    return importImage(root, result.filePaths[0])
+    return Promise.all(result.filePaths.map((p) => importImage(root, p)))
   })
 
   // 编辑器粘贴/拖入的图片数据（渲染进程以 Uint8Array 传输）
   ipcMain.handle('images:save', (_e, name: string, mime: string, data: Uint8Array) =>
     saveImage(requireRoot(), name, mime, data)
   )
+
+  ipcMain.handle('images:delete', async (_e, relPath: string) => {
+    await deleteImage(requireRoot(), relPath, shell.trashItem)
+  })
+
+  ipcMain.handle('images:find-unused', () => findUnusedImages(requireRoot()))
+
+  // ---- 生产构建 ----
+  ipcMain.handle('build:start', () => {
+    const project = getCurrentProject()
+    if (!project) throw new Error('尚未打开 Astro 项目')
+    buildRunner?.start(project.path, project.packageManager)
+  })
+  ipcMain.handle('build:stop', async () => {
+    await buildRunner?.stop()
+  })
 
   // ---- dev server ----
   ipcMain.handle('dev:start', async () => {
@@ -155,7 +242,8 @@ export function registerIpcHandlers(): void {
   })
 }
 
-/** 应用退出前停止 dev server 子进程 */
+/** 应用退出前停止 dev server / 构建子进程与文件监听 */
 export async function disposeIpc(): Promise<void> {
-  await devManager?.stop()
+  stopPostsWatch()
+  await Promise.all([devManager?.stop(), buildRunner?.stop()])
 }

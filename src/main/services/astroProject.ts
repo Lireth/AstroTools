@@ -83,6 +83,11 @@ async function extractSite(root: string): Promise<string | undefined> {
   return undefined
 }
 
+/** 内容配置文件的候选绝对路径（供文件监听等外部使用） */
+export function contentConfigCandidates(root: string): string[] {
+  return CONTENT_CONFIG_CANDIDATES.map((c) => join(root, c))
+}
+
 interface GlobEntry {
   name: string
   base?: string

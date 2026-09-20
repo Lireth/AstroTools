@@ -1,6 +1,7 @@
 import type {
   BulkUpdatePatch,
   BulkUpdateResult,
+  BuildState,
   DevServerState,
   FrontmatterTemplate,
   ImageItem,
@@ -44,13 +45,27 @@ export interface Api {
   getFrontmatterTemplate(collection: string): Promise<FrontmatterTemplate>
 
   listImages(): Promise<ImageItem[]>
-  /** 弹出文件选择框导入一张图片到 public/ */
-  importImage(): Promise<ImportImageResult | null>
+  /** 弹出文件选择框导入一张或多张图片到 public/ */
+  importImages(): Promise<ImportImageResult[]>
   /** 保存编辑器粘贴/拖入的图片二进制到 public/images/，返回 markdown 引用 */
   saveImage(name: string, mime: string, data: Uint8Array): Promise<ImportImageResult>
+  /** 删除图片（移入系统回收站）。relPath 相对 public/ */
+  deleteImage(relPath: string): Promise<void>
+  /** 查找 public/ 下未被任何源码/文章引用的图片 */
+  findUnusedImages(): Promise<string[]>
 
   startDevServer(): Promise<void>
   stopDevServer(): Promise<void>
   /** 订阅 dev server 状态推送，返回取消订阅函数 */
   onDevServerState(cb: (state: DevServerState) => void): () => void
+
+  /** 启动 astro build 生产构建（同一时刻仅允许一个） */
+  startBuild(): Promise<void>
+  /** 取消进行中的构建 */
+  stopBuild(): Promise<void>
+  /** 订阅构建状态推送，返回取消订阅函数 */
+  onBuildState(cb: (state: BuildState) => void): () => void
+
+  /** 订阅文章列表推送（主进程文件监听检测到外部修改时），返回取消订阅函数 */
+  onPostsChanged(cb: (posts: PostMeta[]) => void): () => void
 }

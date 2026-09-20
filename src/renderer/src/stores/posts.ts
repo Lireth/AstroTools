@@ -22,6 +22,17 @@ export const usePostsStore = defineStore('posts', () => {
   const loading = ref(false)
   const loaded = ref(false)
 
+  // 外部修改推送（主进程文件监听）：git pull / 其他编辑器改动文章后自动更新列表
+  let unsubscribeExternal: (() => void) | null = null
+  function initExternalSync(): void {
+    if (unsubscribeExternal) return
+    unsubscribeExternal = window.api.onPostsChanged((list) => {
+      posts.value = list
+      loaded.value = true
+      loading.value = false
+    })
+  }
+
   // 筛选状态（侧边栏与列表页共享）
   const query = ref('')
   const tag = ref<string | null>(null)
@@ -163,6 +174,7 @@ export const usePostsStore = defineStore('posts', () => {
     load,
     reload,
     invalidate,
+    initExternalSync,
     clearFilters,
     createFromDialog,
     remove,

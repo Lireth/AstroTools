@@ -8,6 +8,7 @@ import { useProjectStore } from '../stores/project'
 import { usePostsStore } from '../stores/posts'
 import { useEditorStore } from '../stores/editor'
 import { useDevServerStore } from '../stores/devServer'
+import { useBuildStore } from '../stores/build'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,8 +16,10 @@ const project = useProjectStore()
 const posts = usePostsStore()
 const editor = useEditorStore()
 const dev = useDevServerStore()
+const build = useBuildStore()
 
 const paletteOpen = ref(false)
+const buildLogOpen = ref(false)
 
 function onGlobalKeydown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
@@ -45,6 +48,27 @@ const devStatusText = computed(
       error: '异常'
     })[dev.state.status]
 )
+
+const buildStatusText = computed(
+  () =>
+    ({
+      idle: '未构建',
+      building: '构建中…',
+      done: build.state.durationMs
+        ? `完成（${Math.round(build.state.durationMs / 1000)}s）`
+        : '完成',
+      error: '失败'
+    })[build.state.status]
+)
+
+async function startBuild(): Promise<void> {
+  try {
+    await build.start()
+    buildLogOpen.value = true
+  } catch (err) {
+    ElMessage.error((err as Error).message)
+  }
+}
 
 const navItems = [
   { path: '/posts', label: '文章管理', icon: Document },
@@ -106,6 +130,8 @@ watch(
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
   dev.init()
+  build.init()
+  posts.initExternalSync()
   if (project.info) void posts.load(true)
 })
 
@@ -220,11 +246,42 @@ onBeforeUnmount(() => {
           @click="router.push('/preview')"
           >打开预览</el-button
         >
+        <div
+          v-if="build.state.status !== 'idle'"
+          class="dev-pill build-pill"
+          :class="`build-${build.state.status}`"
+          title="点击查看构建日志"
+          @click="buildLogOpen = true"
+        >
+          <span class="dev-dot"></span>
+          构建：{{ buildStatusText }}
+        </div>
+        <el-button
+          size="small"
+          :loading="build.state.status === 'building'"
+          @click="startBuild"
+          >构建</el-button
+        >
       </header>
       <main class="view">
         <router-view />
       </main>
     </div>
+
+    <el-dialog v-model="buildLogOpen" title="生产构建（astro build）" width="620px">
+      <pre class="build-log">{{ build.state.message || '尚无构建日志' }}</pre>
+      <template #footer>
+        <el-button
+          v-if="build.state.status === 'building'"
+          size="small"
+          type="danger"
+          plain
+          @click="build.stop()"
+          >取消构建</el-button
+        >
+        <el-button size="small" @click="buildLogOpen = false">关闭</el-button>
+      </template>
+    </el-dialog>
 
     <CommandPalette v-model="paletteOpen" />
   </div>
@@ -469,6 +526,32 @@ onBeforeUnmount(() => {
 }
 .dev-error .dev-dot {
   background: #ef4444;
+}
+.build-pill {
+  cursor: pointer;
+}
+.build-building .dev-dot {
+  background: #f59e0b;
+  animation: blink 1s infinite;
+}
+.build-done .dev-dot {
+  background: #10b981;
+}
+.build-error .dev-dot {
+  background: #ef4444;
+}
+.build-log {
+  margin: 0;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--text-main);
+  background: #f6f7fb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow: auto;
 }
 @keyframes blink {
   50% {

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { Api } from '../shared/api'
-import type { DevServerState } from '../shared/types'
+import type { BuildState, DevServerState, PostMeta } from '../shared/types'
 
 const api: Api = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -23,8 +23,10 @@ const api: Api = {
   getFrontmatterTemplate: (collection) => ipcRenderer.invoke('posts:template', collection),
 
   listImages: () => ipcRenderer.invoke('images:list'),
-  importImage: () => ipcRenderer.invoke('images:import'),
+  importImages: () => ipcRenderer.invoke('images:import'),
   saveImage: (name, mime, data) => ipcRenderer.invoke('images:save', name, mime, data),
+  deleteImage: (relPath) => ipcRenderer.invoke('images:delete', relPath),
+  findUnusedImages: () => ipcRenderer.invoke('images:find-unused'),
 
   startDevServer: () => ipcRenderer.invoke('dev:start'),
   stopDevServer: () => ipcRenderer.invoke('dev:stop'),
@@ -33,6 +35,24 @@ const api: Api = {
     ipcRenderer.on('dev:state', handler)
     return () => {
       ipcRenderer.removeListener('dev:state', handler)
+    }
+  },
+
+  startBuild: () => ipcRenderer.invoke('build:start'),
+  stopBuild: () => ipcRenderer.invoke('build:stop'),
+  onBuildState: (cb) => {
+    const handler = (_e: IpcRendererEvent, state: BuildState): void => cb(state)
+    ipcRenderer.on('build:state', handler)
+    return () => {
+      ipcRenderer.removeListener('build:state', handler)
+    }
+  },
+
+  onPostsChanged: (cb) => {
+    const handler = (_e: IpcRendererEvent, posts: PostMeta[]): void => cb(posts)
+    ipcRenderer.on('posts:changed', handler)
+    return () => {
+      ipcRenderer.removeListener('posts:changed', handler)
     }
   }
 }

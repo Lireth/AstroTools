@@ -124,6 +124,15 @@ export interface DevServerState {
   pid?: number
 }
 
+/** 生产构建（astro build）状态 */
+export interface BuildState {
+  status: 'idle' | 'building' | 'done' | 'error'
+  /** 最近一条日志（成功含耗时与输出尾部，失败含错误尾部） */
+  message?: string
+  /** 最近一次成功构建的耗时（毫秒） */
+  durationMs?: number
+}
+
 /** 导入图片结果 */
 export interface ImportImageResult {
   image: ImageItem

@@ -1,5 +1,5 @@
-import { copyFile, mkdir, readdir, stat, writeFile } from 'node:fs/promises'
-import { basename, extname, join } from 'node:path'
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { basename, extname, join, resolve, sep } from 'node:path'
 import type { ImageItem, ImportImageResult } from '../../shared/types'
 import { pathExists, sanitizeFileName } from './paths'
 
@@ -13,6 +13,11 @@ const MIME_EXT: Record<string, string> = {
   'image/svg+xml': 'svg',
   'image/avif': 'avif'
 }
+/** 查找未引用图片时扫描的源码文件类型 */
+const REFERENCE_TEXT_EXTS = new Set([
+  '.md', '.mdx', '.astro', '.ts', '.mts', '.js', '.mjs', '.css', '.scss', '.vue', '.json', '.html'
+])
+const ASTRO_CONFIG_NAMES = ['astro.config.ts', 'astro.config.mts', 'astro.config.mjs', 'astro.config.js']
 
 export function isImageFile(name: string): boolean {
   return IMAGE_EXTS.has(extname(name).toLowerCase())
@@ -128,4 +133,64 @@ export async function saveImage(
     image,
     markdownRef: `![${stem}](${image.refPath})`
   }
+}
+
+/** 删除图片（trash 由调用方注入，走系统回收站）。relPath 相对 public/，防路径穿越 */
+export async function deleteImage(
+  root: string,
+  relPath: string,
+  trash: (path: string) => Promise<void>
+): Promise<void> {
+  const publicRoot = resolve(publicDir(root))
+  const abs = resolve(publicRoot, relPath)
+  if (!abs.startsWith(publicRoot + sep)) throw new Error('非法的图片路径')
+  if (!(await pathExists(abs))) throw new Error('图片不存在')
+  await trash(abs)
+}
+
+/** 收集 src/ 与根配置文件中可能引用图片的文本（拼接为一个大字符串） */
+async function collectReferenceText(root: string): Promise<string> {
+  const chunks: string[] = []
+  const walk = async (dir: string, depth: number): Promise<void> => {
+    if (depth > 6) return
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name)
+      if (entry.isFile() && REFERENCE_TEXT_EXTS.has(extname(entry.name).toLowerCase())) {
+        try {
+          chunks.push(await readFile(full, 'utf-8'))
+        } catch {
+          // 读取失败即跳过该文件
+        }
+      } else if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== 'dist') {
+        await walk(full, depth + 1)
+      }
+    }
+  }
+  await walk(join(root, 'src'), 0)
+  for (const name of ASTRO_CONFIG_NAMES) {
+    const p = join(root, name)
+    if (!(await pathExists(p))) continue
+    try {
+      chunks.push(await readFile(p, 'utf-8'))
+    } catch {
+      // 忽略
+    }
+  }
+  return chunks.join('\n')
+}
+
+/**
+ * 找出 public/ 下未被任何源码/文章引用的图片（返回相对 public/ 的路径）。
+ * 判定保守：只要任意源码文本含该相对路径即视为已引用，避免误删主题引用的资源。
+ */
+export async function findUnusedImages(root: string): Promise<string[]> {
+  const text = await collectReferenceText(root)
+  const images = await listImages(root)
+  return images.filter((img) => !text.includes(img.relPath)).map((img) => img.relPath)
 }
