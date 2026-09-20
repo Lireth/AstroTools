@@ -4,7 +4,15 @@ import { extname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { disposeIpc, registerIpcHandlers } from './ipc'
 import { IpcChannel } from '../shared/channels'
-import { getCurrentRoot, getMainWindow, setMainWindow } from './state'
+import { loadSettings } from './services/settings'
+import { loadWindowState, saveWindowState, WINDOW_DEFAULTS } from './services/windowState'
+import {
+  getRememberWindow,
+  getCurrentRoot,
+  getMainWindow,
+  setMainWindow,
+  setRememberWindow
+} from './state'
 
 const MEDIA_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -30,9 +38,12 @@ let forceClose = false
 let quitting = false
 
 function createWindow(): void {
+  // 窗口记忆开启时恢复上次大小/位置（位置越界时仅恢复尺寸）
+  const state = getRememberWindow() ? loadWindowState() : null
   const win = new BrowserWindow({
-    width: 1320,
-    height: 860,
+    width: state?.width ?? WINDOW_DEFAULTS.width,
+    height: state?.height ?? WINDOW_DEFAULTS.height,
+    ...(state?.x !== undefined && state?.y !== undefined ? { x: state.x, y: state.y } : {}),
     minWidth: 1024,
     minHeight: 680,
     show: false,
@@ -43,9 +54,15 @@ function createWindow(): void {
       webviewTag: true
     }
   })
+  if (state?.maximized) win.maximize()
 
   win.on('ready-to-show', () => win.show())
   win.on('closed', () => setMainWindow(null))
+  // 窗口记忆：close 可能在"确认关闭"流程中被 preventDefault，
+  // 但此时记录当前 bounds 也无副作用（下次关闭会再次覆盖）
+  win.on('close', () => {
+    if (getRememberWindow()) saveWindowState(win)
+  })
   // 有未保存修改时先询问渲染层（渲染层确认后调用 app:confirm-close）
   win.on('close', (e) => {
     if (forceClose || quitting) return
@@ -105,7 +122,7 @@ if (process.env['ASTROTOOLS_E2E']) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env['ASTROTOOLS_E2E'])
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpcHandlers()
   registerMediaProtocol()
   // 渲染层确认可以关闭（无脏状态或用户已确认放弃/保存）后放行
@@ -113,6 +130,12 @@ app.whenReady().then(() => {
     forceClose = true
     getMainWindow()?.close()
   })
+  // 创建窗口前读取窗口记忆开关（close 事件为同步流程，需主进程侧缓存）
+  try {
+    setRememberWindow((await loadSettings(app.getPath('userData'))).rememberWindow)
+  } catch {
+    // 读取失败按默认开启处理
+  }
   createWindow()
 
   app.on('activate', () => {

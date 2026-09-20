@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ThemeMode } from '@shared/types'
+import type { PostSortMode, ThemeMode } from '@shared/types'
 
 // 同一查询的 MediaQueryList 缓存为模块级单例，避免各处重复调用 matchMedia
 const darkMedia = window.matchMedia('(prefers-color-scheme: dark)')
@@ -22,6 +22,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const gitBadge = ref(true)
   const fileWatch = ref(true)
   const draftSnapshot = ref(true)
+  const editorPreview = ref(true)
+  const autoReopen = ref(false)
+  const uiZoom = ref(1)
+  const rememberWindow = ref(true)
+  const postSort = ref<PostSortMode>('date-desc')
+  const newAsDraft = ref(false)
   const loaded = ref(false)
 
   const isDark = computed(
@@ -38,6 +44,13 @@ export const useSettingsStore = defineStore('settings', () => {
     gitBadge.value = s.gitBadge
     fileWatch.value = s.fileWatch
     draftSnapshot.value = s.draftSnapshot
+    editorPreview.value = s.editorPreview
+    autoReopen.value = s.autoReopen
+    uiZoom.value = s.uiZoom
+    rememberWindow.value = s.rememberWindow
+    postSort.value = s.postSort
+    newAsDraft.value = s.newAsDraft
+    window.api.setUiZoom(s.uiZoom)
     applyTheme(theme.value)
     loaded.value = true
   }
@@ -83,6 +96,37 @@ export const useSettingsStore = defineStore('settings', () => {
     void window.api.savePreferences({ draftSnapshot: value })
   }
 
+  function setEditorPreview(value: boolean): void {
+    editorPreview.value = value
+    void window.api.savePreferences({ editorPreview: value })
+  }
+
+  function setAutoReopen(value: boolean): void {
+    autoReopen.value = value
+    void window.api.savePreferences({ autoReopen: value })
+  }
+
+  function setUiZoom(factor: number): void {
+    uiZoom.value = factor
+    window.api.setUiZoom(factor)
+    void window.api.savePreferences({ uiZoom: factor })
+  }
+
+  function setRememberWindow(value: boolean): void {
+    rememberWindow.value = value
+    void window.api.savePreferences({ rememberWindow: value })
+  }
+
+  function setPostSort(value: PostSortMode): void {
+    postSort.value = value
+    void window.api.savePreferences({ postSort: value })
+  }
+
+  function setNewAsDraft(value: boolean): void {
+    newAsDraft.value = value
+    void window.api.savePreferences({ newAsDraft: value })
+  }
+
   // 跟随系统模式下响应系统主题变化。
   // 监听器随 store 创建注册；store 重建（如 HMR）时先解除旧监听，避免叠加与过期闭包。
   if (systemThemeCleanup) systemThemeCleanup()
@@ -104,6 +148,12 @@ export const useSettingsStore = defineStore('settings', () => {
     gitBadge,
     fileWatch,
     draftSnapshot,
+    editorPreview,
+    autoReopen,
+    uiZoom,
+    rememberWindow,
+    postSort,
+    newAsDraft,
     loaded,
     isDark,
     load,
@@ -114,6 +164,12 @@ export const useSettingsStore = defineStore('settings', () => {
     setEditorTabSize,
     setGitBadge,
     setFileWatch,
-    setDraftSnapshot
+    setDraftSnapshot,
+    setEditorPreview,
+    setAutoReopen,
+    setUiZoom,
+    setRememberWindow,
+    setPostSort,
+    setNewAsDraft
   }
 })

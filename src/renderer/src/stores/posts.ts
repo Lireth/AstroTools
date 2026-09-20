@@ -8,6 +8,7 @@ import type {
   NewPostInput,
   PostMeta
 } from '@shared/types'
+import { useSettingsStore } from './settings'
 
 export interface CreatePostDialogInput {
   collection: string
@@ -81,12 +82,24 @@ export const usePostsStore = defineStore('posts', () => {
   const filtered = computed(() => {
     // 多词 AND：所有关键词都命中才算匹配（searchText 含标题/正文/标签/描述）
     const terms = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    return posts.value.filter((p) => {
+    const matched = posts.value.filter((p) => {
       if (collection.value && p.collection !== collection.value) return false
       if (tag.value && !p.tags.includes(tag.value)) return false
       if (draftOnly.value && !p.draft) return false
       if (terms.length && !terms.every((t) => p.searchText.includes(t))) return false
       return true
+    })
+    // 排序方式为全局设置（日期新→旧 / 日期旧→新 / 标题）；无日期文章始终排最后
+    const mode = useSettingsStore().postSort
+    const ts = (p: PostMeta): number => (p.date ? Date.parse(p.date) : Number.NaN)
+    return [...matched].sort((a, b) => {
+      if (mode === 'title') return a.title.localeCompare(b.title, 'zh')
+      const ta = ts(a)
+      const tb = ts(b)
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0
+      if (Number.isNaN(ta)) return 1
+      if (Number.isNaN(tb)) return -1
+      return mode === 'date-asc' ? ta - tb : tb - ta
     })
   })
 

@@ -183,7 +183,7 @@ function openCreate(): void {
   form.fileName = 'new-post'
   fileNameEdited.value = false
   form.tags = []
-  form.draft = false
+  form.draft = settings.newAsDraft
   form.description = ''
   createVisible.value = true
 }

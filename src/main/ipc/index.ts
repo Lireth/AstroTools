@@ -37,7 +37,13 @@ import {
 } from '../services/postService'
 import { checkLinks } from '../services/linkChecker'
 import { IpcChannel } from '../../shared/channels'
-import { getCurrentProject, getCurrentRoot, getMainWindow, setCurrentProject } from '../state'
+import {
+  getCurrentRoot,
+  getMainWindow,
+  getCurrentProject,
+  setCurrentProject,
+  setRememberWindow
+} from '../state'
 
 function requireRoot(): string {
   const root = getCurrentRoot()
@@ -150,6 +156,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannel.settingsGet, () => loadSettings(app.getPath('userData')))
   ipcMain.handle(IpcChannel.settingsSave, async (_e, patch) => {
     const settings = await updateAppPreferences(app.getPath('userData'), patch)
+    // 窗口记忆开关同步到主进程缓存（close 事件同步保存 bounds 时使用）
+    setRememberWindow(settings.rememberWindow)
     // 文件监听开关：关闭立即停止 watcher；开启且有当前项目时重新启动
     if (patch?.fileWatch === false) {
       stopPostsWatch()

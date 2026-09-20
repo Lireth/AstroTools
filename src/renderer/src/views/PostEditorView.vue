@@ -15,9 +15,13 @@ const editor = useEditorStore()
 const posts = usePostsStore()
 const settings = useSettingsStore()
 
-// 元数据面板默认折叠：避免展开状态挤压下方编辑区/预览区
+// 元数据面板默认折叠：避免展开状态挤压下方编辑/预览区
 const metaOpen = ref<string[]>([])
-const previewVisible = ref(true)
+// 预览开关持久化为设置项：编辑页切换按钮与设置面板读写同一值
+const previewVisible = computed({
+  get: () => settings.editorPreview,
+  set: (v: boolean) => settings.setEditorPreview(v)
+})
 
 const postId = computed(() => decodeURIComponent(String(route.params.id ?? '')))
 

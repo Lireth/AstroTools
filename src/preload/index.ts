@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { IpcChannel } from '../shared/channels'
 import type { Api } from '../shared/api'
@@ -15,6 +15,9 @@ const api: Api = {
   getCurrentProject: () => ipcRenderer.invoke(IpcChannel.projectGetCurrent),
   showProjectInFolder: () => ipcRenderer.invoke(IpcChannel.projectShowInFolder),
   openExternal: (url) => ipcRenderer.invoke(IpcChannel.shellOpenExternal, url),
+  setUiZoom: (factor) => {
+    webFrame.setZoomFactor(factor)
+  },
 
   getGitStatus: () => ipcRenderer.invoke(IpcChannel.gitStatus),
   commitPosts: (ids, message) => ipcRenderer.invoke(IpcChannel.gitCommit, ids, message),

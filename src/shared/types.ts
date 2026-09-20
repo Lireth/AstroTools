@@ -157,6 +157,9 @@ export interface ImportImageResult {
 /** 应用主题模式 */
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** 文章列表排序方式 */
+export type PostSortMode = 'date-desc' | 'date-asc' | 'title'
+
 /** 应用设置（settings.json 持久化） */
 export interface AppSettings {
   recentProjects: string[]
@@ -175,6 +178,18 @@ export interface AppSettings {
   fileWatch: boolean
   /** 崩溃快照：编辑内容防抖快照与重开恢复 */
   draftSnapshot: boolean
+  /** 编辑器默认显示实时预览 */
+  editorPreview: boolean
+  /** 启动时自动打开上次的项目（最近项目第一条） */
+  autoReopen: boolean
+  /** 界面缩放（仅允许 0.9/1/1.25/1.5） */
+  uiZoom: number
+  /** 记住窗口大小和位置（持久化到 window-state.json） */
+  rememberWindow: boolean
+  /** 文章列表默认排序方式 */
+  postSort: PostSortMode
+  /** 新建文章对话框默认勾选草稿 */
+  newAsDraft: boolean
 }
 
 /** git 文章状态（来自 git status porcelain 的简化映射） */

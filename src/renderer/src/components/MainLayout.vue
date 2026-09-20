@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ThemeMode } from '@shared/types'
+import type { PostSortMode, ThemeMode } from '@shared/types'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -362,6 +362,19 @@ onBeforeUnmount(() => {
               <el-radio-button value="system">跟随系统</el-radio-button>
             </el-radio-group>
           </div>
+          <div class="settings-row">
+            <span class="settings-label">界面缩放</span>
+            <el-radio-group
+              size="small"
+              :model-value="settings.uiZoom"
+              @update:model-value="settings.setUiZoom($event as number)"
+            >
+              <el-radio-button :value="0.9">90%</el-radio-button>
+              <el-radio-button :value="1">100%</el-radio-button>
+              <el-radio-button :value="1.25">125%</el-radio-button>
+              <el-radio-button :value="1.5">150%</el-radio-button>
+            </el-radio-group>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -383,6 +396,13 @@ onBeforeUnmount(() => {
             <el-switch
               :model-value="settings.editorWordWrap"
               @update:model-value="settings.setEditorWordWrap($event as boolean)"
+            />
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">默认显示实时预览</span>
+            <el-switch
+              :model-value="settings.editorPreview"
+              @update:model-value="settings.setEditorPreview($event as boolean)"
             />
           </div>
           <div class="settings-row">
@@ -436,6 +456,48 @@ onBeforeUnmount(() => {
             <el-switch
               :model-value="settings.draftSnapshot"
               @update:model-value="settings.setDraftSnapshot($event as boolean)"
+            />
+          </div>
+          <div class="settings-row">
+            <div class="settings-desc">
+              <span class="settings-label">启动自动打开上次项目</span>
+              <span class="settings-hint">启动时自动打开最近使用的项目（项目失效则回到欢迎页）</span>
+            </div>
+            <el-switch
+              :model-value="settings.autoReopen"
+              @update:model-value="settings.setAutoReopen($event as boolean)"
+            />
+          </div>
+          <div class="settings-row">
+            <div class="settings-desc">
+              <span class="settings-label">记住窗口大小和位置</span>
+              <span class="settings-hint">下次启动恢复本次关闭时的窗口状态</span>
+            </div>
+            <el-switch
+              :model-value="settings.rememberWindow"
+              @update:model-value="settings.setRememberWindow($event as boolean)"
+            />
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">文章排序</span>
+            <el-radio-group
+              size="small"
+              :model-value="settings.postSort"
+              @update:model-value="settings.setPostSort($event as PostSortMode)"
+            >
+              <el-radio-button value="date-desc">日期新→旧</el-radio-button>
+              <el-radio-button value="date-asc">日期旧→新</el-radio-button>
+              <el-radio-button value="title">标题</el-radio-button>
+            </el-radio-group>
+          </div>
+          <div class="settings-row">
+            <div class="settings-desc">
+              <span class="settings-label">新建文章默认为草稿</span>
+              <span class="settings-hint">新建文章对话框默认勾选"草稿"，避免误发布</span>
+            </div>
+            <el-switch
+              :model-value="settings.newAsDraft"
+              @update:model-value="settings.setNewAsDraft($event as boolean)"
             />
           </div>
         </div>

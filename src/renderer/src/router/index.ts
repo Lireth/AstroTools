@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useProjectStore } from '../stores/project'
+import { useSettingsStore } from '../stores/settings'
 import WelcomeView from '../views/WelcomeView.vue'
 import PostListView from '../views/PostListView.vue'
 import PostEditorView from '../views/PostEditorView.vue'
@@ -27,7 +28,8 @@ const router = createRouter({
 
 // 未打开项目时只能停留在欢迎页。
 // 渲染层重载（崩溃/刷新恢复）时主进程可能仍持有打开的项目：
-// 首次被拦截的导航先尝试从主进程恢复会话，恢复失败才回落到欢迎页。
+// 首次被拦截的导航先尝试从主进程恢复会话；无会话且开启了"启动自动恢复"
+// 时尝试打开最近项目第一条，失败（项目已不存在/无效）则回落到欢迎页。
 let restoreAttempted = false
 
 router.beforeEach(async (to) => {
@@ -36,6 +38,16 @@ router.beforeEach(async (to) => {
   if (!restoreAttempted) {
     restoreAttempted = true
     await project.restore()
+    if (!project.info && useSettingsStore().autoReopen) {
+      const recents = (await window.api.getSettings()).recentProjects
+      if (recents.length > 0) {
+        try {
+          await project.openByPath(recents[0])
+        } catch {
+          // 项目已失效：静默回落欢迎页
+        }
+      }
+    }
   }
   if (!project.info && !to.meta.bare) return { path: '/welcome' }
 })

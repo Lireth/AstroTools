@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AppSettings, ThemeMode } from '../../shared/types'
+import type { AppSettings, PostSortMode, ThemeMode } from '../../shared/types'
 
 const MAX_RECENTS = 10
 const THEMES: ThemeMode[] = ['light', 'dark', 'system']
@@ -9,6 +9,10 @@ const FONT_SIZE_MAX = 24
 const DEFAULT_FONT_SIZE = 14
 const TAB_SIZES: number[] = [2, 4, 8]
 const DEFAULT_TAB_SIZE = 2
+const ZOOM_LEVELS: number[] = [0.9, 1, 1.25, 1.5]
+const DEFAULT_ZOOM = 1
+const SORT_MODES: PostSortMode[] = ['date-desc', 'date-asc', 'title']
+const DEFAULT_SORT: PostSortMode = 'date-desc'
 
 function settingsFile(storageDir: string): string {
   return join(storageDir, 'settings.json')
@@ -23,6 +27,16 @@ function clampFontSize(value: unknown): number {
 /** 缩进宽度校验：仅允许 2/4/8，非法值回退默认 */
 function normalizeTabSize(value: unknown): number {
   return TAB_SIZES.includes(value as number) ? (value as number) : DEFAULT_TAB_SIZE
+}
+
+/** 界面缩放校验：仅允许预设档位，非法值回退默认 */
+function normalizeZoom(value: unknown): number {
+  return ZOOM_LEVELS.includes(value as number) ? (value as number) : DEFAULT_ZOOM
+}
+
+/** 排序方式校验：非法值回退默认 */
+function normalizeSort(value: unknown): PostSortMode {
+  return SORT_MODES.includes(value as PostSortMode) ? (value as PostSortMode) : DEFAULT_SORT
 }
 
 /** 布尔字段校验：非布尔值回退默认 */
@@ -47,7 +61,13 @@ export async function loadSettings(storageDir: string): Promise<AppSettings> {
         editorTabSize: normalizeTabSize(d.editorTabSize),
         gitBadge: normalizeBool(d.gitBadge, true),
         fileWatch: normalizeBool(d.fileWatch, true),
-        draftSnapshot: normalizeBool(d.draftSnapshot, true)
+        draftSnapshot: normalizeBool(d.draftSnapshot, true),
+        editorPreview: normalizeBool(d.editorPreview, true),
+        autoReopen: normalizeBool(d.autoReopen, false),
+        uiZoom: normalizeZoom(d.uiZoom),
+        rememberWindow: normalizeBool(d.rememberWindow, true),
+        postSort: normalizeSort(d.postSort),
+        newAsDraft: normalizeBool(d.newAsDraft, false)
       }
     }
   } catch {
@@ -62,7 +82,13 @@ export async function loadSettings(storageDir: string): Promise<AppSettings> {
     editorTabSize: DEFAULT_TAB_SIZE,
     gitBadge: true,
     fileWatch: true,
-    draftSnapshot: true
+    draftSnapshot: true,
+    editorPreview: true,
+    autoReopen: false,
+    uiZoom: DEFAULT_ZOOM,
+    rememberWindow: true,
+    postSort: DEFAULT_SORT,
+    newAsDraft: false
   }
 }
 
@@ -92,6 +118,16 @@ export async function updateAppPreferences(
     settings.fileWatch = patch.fileWatch
   if (patch.draftSnapshot !== undefined && typeof patch.draftSnapshot === 'boolean')
     settings.draftSnapshot = patch.draftSnapshot
+  if (patch.editorPreview !== undefined && typeof patch.editorPreview === 'boolean')
+    settings.editorPreview = patch.editorPreview
+  if (patch.autoReopen !== undefined && typeof patch.autoReopen === 'boolean')
+    settings.autoReopen = patch.autoReopen
+  if (patch.uiZoom !== undefined) settings.uiZoom = normalizeZoom(patch.uiZoom)
+  if (patch.rememberWindow !== undefined && typeof patch.rememberWindow === 'boolean')
+    settings.rememberWindow = patch.rememberWindow
+  if (patch.postSort !== undefined) settings.postSort = normalizeSort(patch.postSort)
+  if (patch.newAsDraft !== undefined && typeof patch.newAsDraft === 'boolean')
+    settings.newAsDraft = patch.newAsDraft
   await saveSettings(storageDir, settings)
   return settings
 }

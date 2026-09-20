@@ -39,6 +39,8 @@ export interface Api {
   showProjectInFolder(): Promise<void>
   /** 用系统默认浏览器打开外部链接（仅允许 http/https） */
   openExternal(url: string): Promise<void>
+  /** 设置界面缩放（webFrame zoomFactor，仅允许预设档位） */
+  setUiZoom(factor: number): void
 
   /** 读取文章文件的 git 状态；项目不是 git 仓库时返回 null */
   getGitStatus(): Promise<{ files: Record<string, GitFileStatus> } | null>
