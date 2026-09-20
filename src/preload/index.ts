@@ -1,73 +1,74 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
+import { IpcChannel } from '../shared/channels'
 import type { Api } from '../shared/api'
 import type { BuildState, DevServerState, PostMeta } from '../shared/types'
 
 const api: Api = {
-  getSettings: () => ipcRenderer.invoke('settings:get'),
-  savePreferences: (patch) => ipcRenderer.invoke('settings:save', patch),
-  removeRecentProject: (path) => ipcRenderer.invoke('settings:remove-recent', path),
-  selectProjectFolder: () => ipcRenderer.invoke('project:select'),
-  openProject: (path) => ipcRenderer.invoke('project:open', path),
-  refreshProject: () => ipcRenderer.invoke('project:refresh'),
-  showProjectInFolder: () => ipcRenderer.invoke('project:show-in-folder'),
-  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  getSettings: () => ipcRenderer.invoke(IpcChannel.settingsGet),
+  savePreferences: (patch) => ipcRenderer.invoke(IpcChannel.settingsSave, patch),
+  removeRecentProject: (path) => ipcRenderer.invoke(IpcChannel.settingsRemoveRecent, path),
+  selectProjectFolder: () => ipcRenderer.invoke(IpcChannel.projectSelect),
+  openProject: (path) => ipcRenderer.invoke(IpcChannel.projectOpen, path),
+  refreshProject: () => ipcRenderer.invoke(IpcChannel.projectRefresh),
+  showProjectInFolder: () => ipcRenderer.invoke(IpcChannel.projectShowInFolder),
+  openExternal: (url) => ipcRenderer.invoke(IpcChannel.shellOpenExternal, url),
 
-  getGitStatus: () => ipcRenderer.invoke('git:status'),
-  commitPosts: (ids, message) => ipcRenderer.invoke('git:commit', ids, message),
+  getGitStatus: () => ipcRenderer.invoke(IpcChannel.gitStatus),
+  commitPosts: (ids, message) => ipcRenderer.invoke(IpcChannel.gitCommit, ids, message),
 
-  listPosts: () => ipcRenderer.invoke('posts:list'),
-  readPost: (id) => ipcRenderer.invoke('posts:read', id),
-  createPost: (input) => ipcRenderer.invoke('posts:create', input),
-  savePost: (input) => ipcRenderer.invoke('posts:save', input),
-  renamePost: (id, newFileName) => ipcRenderer.invoke('posts:rename', id, newFileName),
-  deletePost: (id) => ipcRenderer.invoke('posts:delete', id),
-  bulkUpdatePosts: (ids, patch) => ipcRenderer.invoke('posts:bulk-update', ids, patch),
-  checkLinks: () => ipcRenderer.invoke('posts:check-links'),
-  getFrontmatterTemplate: (collection) => ipcRenderer.invoke('posts:template', collection),
+  listPosts: () => ipcRenderer.invoke(IpcChannel.postsList),
+  readPost: (id) => ipcRenderer.invoke(IpcChannel.postsRead, id),
+  createPost: (input) => ipcRenderer.invoke(IpcChannel.postsCreate, input),
+  savePost: (input) => ipcRenderer.invoke(IpcChannel.postsSave, input),
+  renamePost: (id, newFileName) => ipcRenderer.invoke(IpcChannel.postsRename, id, newFileName),
+  deletePost: (id) => ipcRenderer.invoke(IpcChannel.postsDelete, id),
+  bulkUpdatePosts: (ids, patch) => ipcRenderer.invoke(IpcChannel.postsBulkUpdate, ids, patch),
+  checkLinks: () => ipcRenderer.invoke(IpcChannel.postsCheckLinks),
+  getFrontmatterTemplate: (collection) => ipcRenderer.invoke(IpcChannel.postsTemplate, collection),
 
-  listImages: () => ipcRenderer.invoke('images:list'),
-  importImages: () => ipcRenderer.invoke('images:import'),
-  saveImage: (name, mime, data) => ipcRenderer.invoke('images:save', name, mime, data),
-  deleteImage: (relPath) => ipcRenderer.invoke('images:delete', relPath),
-  findUnusedImages: () => ipcRenderer.invoke('images:find-unused'),
+  listImages: () => ipcRenderer.invoke(IpcChannel.imagesList),
+  importImages: () => ipcRenderer.invoke(IpcChannel.imagesImport),
+  saveImage: (name, mime, data) => ipcRenderer.invoke(IpcChannel.imagesSave, name, mime, data),
+  deleteImage: (relPath) => ipcRenderer.invoke(IpcChannel.imagesDelete, relPath),
+  findUnusedImages: () => ipcRenderer.invoke(IpcChannel.imagesFindUnused),
 
-  startDevServer: () => ipcRenderer.invoke('dev:start'),
-  stopDevServer: () => ipcRenderer.invoke('dev:stop'),
+  startDevServer: () => ipcRenderer.invoke(IpcChannel.devStart),
+  stopDevServer: () => ipcRenderer.invoke(IpcChannel.devStop),
   onDevServerState: (cb) => {
     const handler = (_e: IpcRendererEvent, state: DevServerState): void => cb(state)
-    ipcRenderer.on('dev:state', handler)
+    ipcRenderer.on(IpcChannel.devState, handler)
     return () => {
-      ipcRenderer.removeListener('dev:state', handler)
+      ipcRenderer.removeListener(IpcChannel.devState, handler)
     }
   },
 
-  startBuild: () => ipcRenderer.invoke('build:start'),
-  stopBuild: () => ipcRenderer.invoke('build:stop'),
+  startBuild: () => ipcRenderer.invoke(IpcChannel.buildStart),
+  stopBuild: () => ipcRenderer.invoke(IpcChannel.buildStop),
   onBuildState: (cb) => {
     const handler = (_e: IpcRendererEvent, state: BuildState): void => cb(state)
-    ipcRenderer.on('build:state', handler)
+    ipcRenderer.on(IpcChannel.buildState, handler)
     return () => {
-      ipcRenderer.removeListener('build:state', handler)
+      ipcRenderer.removeListener(IpcChannel.buildState, handler)
     }
   },
 
   onPostsChanged: (cb) => {
     const handler = (_e: IpcRendererEvent, posts: PostMeta[]): void => cb(posts)
-    ipcRenderer.on('posts:changed', handler)
+    ipcRenderer.on(IpcChannel.postsChanged, handler)
     return () => {
-      ipcRenderer.removeListener('posts:changed', handler)
+      ipcRenderer.removeListener(IpcChannel.postsChanged, handler)
     }
   },
 
   onAppRequestClose: (cb) => {
     const handler = (): void => cb()
-    ipcRenderer.on('app:request-close', handler)
+    ipcRenderer.on(IpcChannel.appRequestClose, handler)
     return () => {
-      ipcRenderer.removeListener('app:request-close', handler)
+      ipcRenderer.removeListener(IpcChannel.appRequestClose, handler)
     }
   },
-  confirmAppClose: () => ipcRenderer.invoke('app:confirm-close')
+  confirmAppClose: () => ipcRenderer.invoke(IpcChannel.appConfirmClose)
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { disposeIpc, registerIpcHandlers } from './ipc'
+import { IpcChannel } from '../shared/channels'
 import { getCurrentRoot, getMainWindow, setMainWindow } from './state'
 
 const MEDIA_MIME: Record<string, string> = {
@@ -49,7 +50,7 @@ function createWindow(): void {
   win.on('close', (e) => {
     if (forceClose || quitting) return
     e.preventDefault()
-    win.webContents.send('app:request-close')
+    win.webContents.send(IpcChannel.appRequestClose)
   })
   setMainWindow(win)
 
@@ -108,7 +109,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   registerMediaProtocol()
   // 渲染层确认可以关闭（无脏状态或用户已确认放弃/保存）后放行
-  ipcMain.handle('app:confirm-close', () => {
+  ipcMain.handle(IpcChannel.appConfirmClose, () => {
     forceClose = true
     getMainWindow()?.close()
   })

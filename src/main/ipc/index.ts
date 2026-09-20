@@ -35,6 +35,7 @@ import {
   scanPosts
 } from '../services/postService'
 import { checkLinks } from '../services/linkChecker'
+import { IpcChannel } from '../../shared/channels'
 import { getCurrentProject, getCurrentRoot, getMainWindow, setCurrentProject } from '../state'
 
 function requireRoot(): string {
@@ -92,7 +93,7 @@ async function startPostsWatch(root: string): Promise<void> {
     try {
       const collections = await discoverCollections(root, { force: true })
       const posts = await scanPosts(root, collections)
-      getMainWindow()?.webContents.send('posts:changed', posts)
+      getMainWindow()?.webContents.send(IpcChannel.postsChanged, posts)
     } catch {
       // 项目可能在切换中，忽略
     }
@@ -138,29 +139,29 @@ async function startPostsWatch(root: string): Promise<void> {
 
 export function registerIpcHandlers(): void {
   devManager = new DevServerManager((state) => {
-    getMainWindow()?.webContents.send('dev:state', state)
+    getMainWindow()?.webContents.send(IpcChannel.devState, state)
   })
   buildRunner = new BuildRunner((state) => {
-    getMainWindow()?.webContents.send('build:state', state)
+    getMainWindow()?.webContents.send(IpcChannel.buildState, state)
   })
 
   // ---- 设置 / 最近项目 ----
-  ipcMain.handle('settings:get', () => loadSettings(app.getPath('userData')))
-  ipcMain.handle('settings:save', (_e, patch) =>
+  ipcMain.handle(IpcChannel.settingsGet, () => loadSettings(app.getPath('userData')))
+  ipcMain.handle(IpcChannel.settingsSave, (_e, patch) =>
     updateAppPreferences(app.getPath('userData'), patch)
   )
-  ipcMain.handle('settings:remove-recent', (_e, path: string) =>
+  ipcMain.handle(IpcChannel.settingsRemoveRecent, (_e, path: string) =>
     removeRecentProject(app.getPath('userData'), path)
   )
 
   // ---- git ----
-  ipcMain.handle('git:status', () => gitStatus(requireRoot()))
-  ipcMain.handle('git:commit', (_e, ids: string[], message: string) =>
+  ipcMain.handle(IpcChannel.gitStatus, () => gitStatus(requireRoot()))
+  ipcMain.handle(IpcChannel.gitCommit, (_e, ids: string[], message: string) =>
     gitCommit(requireRoot(), ids, message)
   )
 
   // ---- 项目 ----
-  ipcMain.handle('project:select', async () => {
+  ipcMain.handle(IpcChannel.projectSelect, async () => {
     const win = currentWindow()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
@@ -170,7 +171,7 @@ export function registerIpcHandlers(): void {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
   })
 
-  ipcMain.handle('project:open', async (_e, path: string) => {
+  ipcMain.handle(IpcChannel.projectOpen, async (_e, path: string) => {
     const validation = await validateAstroProject(path)
     if (!validation.ok) throw new Error(validation.reason ?? '不是有效的 Astro 项目')
     void devManager?.stop()
@@ -183,63 +184,63 @@ export function registerIpcHandlers(): void {
     return info
   })
 
-  ipcMain.handle('project:refresh', async () => {
+  ipcMain.handle(IpcChannel.projectRefresh, async () => {
     const root = requireRoot()
     const info = await readProjectInfo(root)
     setCurrentProject(info)
     return info
   })
 
-  ipcMain.handle('project:show-in-folder', async () => {
+  ipcMain.handle(IpcChannel.projectShowInFolder, async () => {
     await shell.openPath(requireRoot())
   })
 
-  ipcMain.handle('shell:open-external', (_e, url: string) => {
+  ipcMain.handle(IpcChannel.shellOpenExternal, (_e, url: string) => {
     if (!/^https?:\/\//i.test(url)) throw new Error('仅允许打开 http/https 链接')
     return shell.openExternal(url)
   })
 
   // ---- 文章 ----
-  ipcMain.handle('posts:list', async () => {
+  ipcMain.handle(IpcChannel.postsList, async () => {
     const root = requireRoot()
     return scanPosts(root, await discoverCollections(root))
   })
 
-  ipcMain.handle('posts:read', (_e, id: string) => readPost(requireRoot(), id))
+  ipcMain.handle(IpcChannel.postsRead, (_e, id: string) => readPost(requireRoot(), id))
 
-  ipcMain.handle('posts:create', async (_e, input) => {
+  ipcMain.handle(IpcChannel.postsCreate, async (_e, input) => {
     const root = requireRoot()
     return createPost(root, input, await discoverCollections(root))
   })
 
-  ipcMain.handle('posts:save', (_e, input) => savePost(requireRoot(), input))
+  ipcMain.handle(IpcChannel.postsSave, (_e, input) => savePost(requireRoot(), input))
 
-  ipcMain.handle('posts:rename', (_e, id: string, newFileName: string) =>
+  ipcMain.handle(IpcChannel.postsRename, (_e, id: string, newFileName: string) =>
     renamePost(requireRoot(), id, newFileName)
   )
 
-  ipcMain.handle('posts:delete', async (_e, id: string) => {
+  ipcMain.handle(IpcChannel.postsDelete, async (_e, id: string) => {
     await deletePost(requireRoot(), id, shell.trashItem)
   })
 
-  ipcMain.handle('posts:bulk-update', (_e, ids: string[], patch) =>
+  ipcMain.handle(IpcChannel.postsBulkUpdate, (_e, ids: string[], patch) =>
     bulkUpdatePosts(requireRoot(), ids, patch)
   )
 
-  ipcMain.handle('posts:check-links', async () => {
+  ipcMain.handle(IpcChannel.postsCheckLinks, async () => {
     const root = requireRoot()
     return checkLinks(root, await discoverCollections(root))
   })
 
-  ipcMain.handle('posts:template', async (_e, collection: string) => {
+  ipcMain.handle(IpcChannel.postsTemplate, async (_e, collection: string) => {
     const root = requireRoot()
     return buildFrontmatterTemplate(root, collection, await discoverCollections(root))
   })
 
   // ---- 图片 ----
-  ipcMain.handle('images:list', () => listImages(requireRoot()))
+  ipcMain.handle(IpcChannel.imagesList, () => listImages(requireRoot()))
 
-  ipcMain.handle('images:import', async () => {
+  ipcMain.handle(IpcChannel.imagesImport, async () => {
     const root = requireRoot()
     const win = currentWindow()
     if (!win) return null
@@ -253,35 +254,35 @@ export function registerIpcHandlers(): void {
   })
 
   // 编辑器粘贴/拖入的图片数据（渲染进程以 Uint8Array 传输）
-  ipcMain.handle('images:save', (_e, name: string, mime: string, data: Uint8Array) =>
+  ipcMain.handle(IpcChannel.imagesSave, (_e, name: string, mime: string, data: Uint8Array) =>
     saveImage(requireRoot(), name, mime, data)
   )
 
-  ipcMain.handle('images:delete', async (_e, relPath: string) => {
+  ipcMain.handle(IpcChannel.imagesDelete, async (_e, relPath: string) => {
     await deleteImage(requireRoot(), relPath, shell.trashItem)
   })
 
-  ipcMain.handle('images:find-unused', () => findUnusedImages(requireRoot()))
+  ipcMain.handle(IpcChannel.imagesFindUnused, () => findUnusedImages(requireRoot()))
 
   // ---- 生产构建 ----
-  ipcMain.handle('build:start', () => {
+  ipcMain.handle(IpcChannel.buildStart, () => {
     const project = getCurrentProject()
     if (!project) throw new Error('尚未打开 Astro 项目')
     buildRunner?.start(project.path, project.packageManager)
   })
-  ipcMain.handle('build:stop', async () => {
+  ipcMain.handle(IpcChannel.buildStop, async () => {
     await buildRunner?.stop()
   })
 
   // ---- dev server ----
-  ipcMain.handle('dev:start', async () => {
+  ipcMain.handle(IpcChannel.devStart, async () => {
     const project = getCurrentProject()
     const manager = devManager
     if (!project) throw new Error('尚未打开 Astro 项目')
     if (!manager) throw new Error('dev server 管理器未初始化')
     await manager.start(project.path, project.packageManager)
   })
-  ipcMain.handle('dev:stop', async () => {
+  ipcMain.handle(IpcChannel.devStop, async () => {
     await devManager?.stop()
   })
 }

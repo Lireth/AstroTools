@@ -109,6 +109,12 @@ function close(): void {
   query.value = ''
 }
 
+/** 鼠标点击行：执行动作后收起面板（内联多语句处理器不利于模板解析与格式化，收敛为方法） */
+function runRow(row: PaletteRow): void {
+  row.enter()
+  close()
+}
+
 function onInputKeydown(e: KeyboardEvent): void {
   if (e.key === 'ArrowDown') {
     e.preventDefault()
@@ -148,10 +154,7 @@ function onInputKeydown(e: KeyboardEvent): void {
               :class="{ active: i === activeIndex }"
               type="button"
               @mouseenter="activeIndex = i"
-              @click="
-                row.enter()
-                close()
-              "
+              @click="runRow(row)"
             >
               <span class="palette-label">{{ row.label }}</span>
               <span class="palette-hint" :class="row.kind">{{ row.hint }}</span>
