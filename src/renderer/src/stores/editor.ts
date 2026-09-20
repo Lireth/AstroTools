@@ -4,6 +4,7 @@ import { ElMessageBox } from 'element-plus'
 import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
 import { EXTERNAL_MODIFIED_PREFIX } from '@shared/channels'
 import type { FrontmatterTemplate, PostDetail } from '@shared/types'
+import { useSettingsStore } from './settings'
 import { usePostsStore } from './posts'
 
 export interface ExtraField {
@@ -215,6 +216,8 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   watch(body, () => {
+    // 快照功能关闭时不写入（已存在的快照保留，重新开启后仍可恢复）
+    if (!useSettingsStore().draftSnapshot) return
     if (!detail.value || !dirty.value) return
     if (snapshotTimer !== undefined) window.clearTimeout(snapshotTimer)
     snapshotTimer = window.setTimeout(() => {
@@ -231,6 +234,8 @@ export const useEditorStore = defineStore('editor', () => {
 
   /** 打开文章后检查崩溃快照：同 id 且内容与磁盘有差异时询问恢复；不匹配的残留快照直接清理 */
   async function maybeRestoreSnapshot(): Promise<void> {
+    // 快照功能关闭：跳过恢复询问（不清理快照，重新开启后仍可恢复）
+    if (!useSettingsStore().draftSnapshot) return
     const snap = readSnapshot()
     if (!snap) return
     if (!detail.value || snap.id !== detail.value.id || snap.body === body.value) {

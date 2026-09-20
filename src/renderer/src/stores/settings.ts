@@ -16,6 +16,12 @@ export function applyTheme(theme: ThemeMode): void {
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemeMode>('system')
   const editorFontSize = ref(14)
+  const editorWordWrap = ref(true)
+  const editorLineNumbers = ref(true)
+  const editorTabSize = ref(2)
+  const gitBadge = ref(true)
+  const fileWatch = ref(true)
+  const draftSnapshot = ref(true)
   const loaded = ref(false)
 
   const isDark = computed(
@@ -26,6 +32,12 @@ export const useSettingsStore = defineStore('settings', () => {
     const s = await window.api.getSettings()
     theme.value = s.theme
     editorFontSize.value = s.editorFontSize
+    editorWordWrap.value = s.editorWordWrap
+    editorLineNumbers.value = s.editorLineNumbers
+    editorTabSize.value = s.editorTabSize
+    gitBadge.value = s.gitBadge
+    fileWatch.value = s.fileWatch
+    draftSnapshot.value = s.draftSnapshot
     applyTheme(theme.value)
     loaded.value = true
   }
@@ -41,6 +53,36 @@ export const useSettingsStore = defineStore('settings', () => {
     void window.api.savePreferences({ editorFontSize: size })
   }
 
+  function setEditorWordWrap(value: boolean): void {
+    editorWordWrap.value = value
+    void window.api.savePreferences({ editorWordWrap: value })
+  }
+
+  function setEditorLineNumbers(value: boolean): void {
+    editorLineNumbers.value = value
+    void window.api.savePreferences({ editorLineNumbers: value })
+  }
+
+  function setEditorTabSize(size: number): void {
+    editorTabSize.value = size
+    void window.api.savePreferences({ editorTabSize: size })
+  }
+
+  function setGitBadge(value: boolean): void {
+    gitBadge.value = value
+    void window.api.savePreferences({ gitBadge: value })
+  }
+
+  function setFileWatch(value: boolean): void {
+    fileWatch.value = value
+    void window.api.savePreferences({ fileWatch: value })
+  }
+
+  function setDraftSnapshot(value: boolean): void {
+    draftSnapshot.value = value
+    void window.api.savePreferences({ draftSnapshot: value })
+  }
+
   // 跟随系统模式下响应系统主题变化。
   // 监听器随 store 创建注册；store 重建（如 HMR）时先解除旧监听，避免叠加与过期闭包。
   if (systemThemeCleanup) systemThemeCleanup()
@@ -53,5 +95,25 @@ export const useSettingsStore = defineStore('settings', () => {
     systemThemeCleanup = null
   }
 
-  return { theme, editorFontSize, loaded, isDark, load, setTheme, setEditorFontSize }
+  return {
+    theme,
+    editorFontSize,
+    editorWordWrap,
+    editorLineNumbers,
+    editorTabSize,
+    gitBadge,
+    fileWatch,
+    draftSnapshot,
+    loaded,
+    isDark,
+    load,
+    setTheme,
+    setEditorFontSize,
+    setEditorWordWrap,
+    setEditorLineNumbers,
+    setEditorTabSize,
+    setGitBadge,
+    setFileWatch,
+    setDraftSnapshot
+  }
 })

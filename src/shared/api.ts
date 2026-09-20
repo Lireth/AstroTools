@@ -19,14 +19,14 @@ import type {
 
 /** 渲染进程通过 window.api 访问的全部能力（preload contextBridge 暴露） */
 export interface Api {
-  /** 读取应用设置（最近项目 + 主题 + 编辑器字号） */
+  /** 读取应用设置（最近项目 + 偏好） */
   getSettings(): Promise<AppSettings>
-  /** 更新应用偏好（主题/编辑器字号），返回保存后的完整设置 */
-  savePreferences(
-    patch: Partial<Pick<AppSettings, 'theme' | 'editorFontSize'>>
-  ): Promise<AppSettings>
+  /** 更新应用偏好（除最近项目外的全部设置项），返回保存后的完整设置 */
+  savePreferences(patch: Partial<Omit<AppSettings, 'recentProjects'>>): Promise<AppSettings>
   /** 从最近列表移除一条 */
   removeRecentProject(path: string): Promise<void>
+  /** 清空最近项目列表 */
+  clearRecentProjects(): Promise<AppSettings>
   /** 弹出系统文件夹选择框，返回所选路径或 null */
   selectProjectFolder(): Promise<string | null>
   /** 打开（校验并读取）指定路径的 Astro 项目 */

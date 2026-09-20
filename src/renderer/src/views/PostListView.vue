@@ -6,10 +6,12 @@ import { Connection, Delete, EditPen, Plus, Refresh, Search } from '@element-plu
 import type { BulkUpdateResult, GitFileStatus, LinkIssue } from '@shared/types'
 import { usePostsStore } from '../stores/posts'
 import { useProjectStore } from '../stores/project'
+import { useSettingsStore } from '../stores/settings'
 
 const router = useRouter()
 const posts = usePostsStore()
 const project = useProjectStore()
+const settings = useSettingsStore()
 
 const createVisible = ref(false)
 const creating = ref(false)
@@ -256,6 +258,8 @@ const committing = ref(false)
 function gitBadge(
   id: string
 ): { text: string; type: 'warning' | 'success' | 'info' | 'danger' } | null {
+  // git 徽章开关关闭时不显示（提交入口同受控制）
+  if (!settings.gitBadge) return null
   const s = posts.gitFiles[id]
   return s ? GIT_BADGE[s] : null
 }
@@ -285,7 +289,8 @@ async function submitCommit(): Promise<void> {
 
 onMounted(() => {
   void posts.load()
-  void posts.loadGitStatus()
+  // git 徽章关闭时不请求 git 状态，减少子进程调用
+  if (settings.gitBadge) void posts.loadGitStatus()
 })
 </script>
 
@@ -395,7 +400,7 @@ onMounted(() => {
         <el-button size="small" @click="bulkSetDraft(true)">转草稿</el-button>
         <el-button size="small" @click="openBulkTags">加标签</el-button>
         <el-button
-          v-if="posts.isGitRepo"
+          v-if="settings.gitBadge && posts.isGitRepo"
           size="small"
           type="primary"
           plain

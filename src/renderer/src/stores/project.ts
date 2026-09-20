@@ -45,5 +45,22 @@ export const useProjectStore = defineStore('project', () => {
     await init()
   }
 
-  return { info, recents, opening, init, openByPath, selectAndOpen, refresh, restore, removeRecent }
+  /** 清空最近项目列表 */
+  async function clearRecents(): Promise<void> {
+    await window.api.clearRecentProjects()
+    await init()
+  }
+
+  return {
+    info,
+    recents,
+    opening,
+    init,
+    openByPath,
+    selectAndOpen,
+    refresh,
+    restore,
+    removeRecent,
+    clearRecents
+  }
 })

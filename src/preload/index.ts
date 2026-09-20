@@ -8,6 +8,7 @@ const api: Api = {
   getSettings: () => ipcRenderer.invoke(IpcChannel.settingsGet),
   savePreferences: (patch) => ipcRenderer.invoke(IpcChannel.settingsSave, patch),
   removeRecentProject: (path) => ipcRenderer.invoke(IpcChannel.settingsRemoveRecent, path),
+  clearRecentProjects: () => ipcRenderer.invoke(IpcChannel.settingsClearRecent),
   selectProjectFolder: () => ipcRenderer.invoke(IpcChannel.projectSelect),
   openProject: (path) => ipcRenderer.invoke(IpcChannel.projectOpen, path),
   refreshProject: () => ipcRenderer.invoke(IpcChannel.projectRefresh),

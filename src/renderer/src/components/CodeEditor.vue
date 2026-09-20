@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, runScopeHandlers, type Panel } from '@codemirror/view'
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
+import { indentUnit } from '@codemirror/language'
 import { basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
@@ -30,6 +31,12 @@ const props = defineProps<{
   dark?: boolean
   /** 编辑器字号（px） */
   fontSize?: number
+  /** 自动换行（默认开） */
+  wordWrap?: boolean
+  /** 显示行号（默认开） */
+  lineNumbers?: boolean
+  /** Tab 缩进宽度（默认 2） */
+  tabSize?: number
 }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 
@@ -37,8 +44,11 @@ const container = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 // 外部同步（加载文章）时的 dispatch 不应触发 dirty 标记
 let syncing = false
-// 暗色主题用 Compartment 动态切换，无需重建编辑器
+// 暗色主题/换行/缩进宽度均用 Compartment 动态切换，无需重建编辑器；
+// 行号开关为纯视觉项，basicSetup 内置的行号扩展无法摘除，用 CSS 隐藏 gutter 实现
 const themeCompartment = new Compartment()
+const wrapCompartment = new Compartment()
+const tabSizeCompartment = new Compartment()
 
 function languageExtension(): Extension {
   return props.language === 'yaml' ? yamlLang() : markdown({ codeLanguages: languages })
@@ -132,6 +142,12 @@ async function transferImage(event: ClipboardEvent | DragEvent, v: EditorView): 
   }
 }
 
+/** 缩进宽度：indentUnit 决定 Tab 键插入/缩进宽度，tabSize 决定制表符渲染宽度 */
+function tabSizeExtensions(size: number): Extension[] {
+  const n = size === 4 || size === 8 ? size : 2
+  return [EditorState.tabSize.of(n), indentUnit.of(' '.repeat(n))]
+}
+
 onMounted(() => {
   if (!container.value) return
   view = new EditorView({
@@ -145,7 +161,8 @@ onMounted(() => {
         keymap.of([{ key: 'Escape', run: closeSearchPanel }]),
         themeCompartment.of(props.dark ? oneDark : []),
         languageExtension(),
-        EditorView.lineWrapping,
+        wrapCompartment.of(props.wordWrap === false ? [] : EditorView.lineWrapping),
+        tabSizeCompartment.of(tabSizeExtensions(props.tabSize ?? 2)),
         EditorState.readOnly.of(props.readOnly ?? false),
         // 不在组件内绑定 Mod-s：保存是页面级关注点，由宿主的 window keydown 统一处理，
         // 避免组件 keymap + 冒泡到 window 的双重触发
@@ -179,6 +196,20 @@ watch(
 )
 
 watch(
+  () => props.wordWrap,
+  (wrap) => {
+    view?.dispatch({ effects: wrapCompartment.reconfigure(wrap === false ? [] : EditorView.lineWrapping) })
+  }
+)
+
+watch(
+  () => props.tabSize,
+  (size) => {
+    view?.dispatch({ effects: tabSizeCompartment.reconfigure(tabSizeExtensions(size ?? 2)) })
+  }
+)
+
+watch(
   () => props.modelValue,
   (value) => {
     if (!view) return
@@ -206,6 +237,7 @@ onBeforeUnmount(() => {
   <div
     ref="container"
     class="code-editor"
+    :class="{ 'hide-gutters': lineNumbers === false }"
     :style="fontSize ? { fontSize: `${fontSize}px` } : undefined"
   ></div>
 </template>
@@ -215,6 +247,11 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   border-radius: var(--radius-sm);
+}
+
+/* 行号开关：隐藏整个 gutter 列（行号 + 折叠标记，均为纯视觉元素） */
+.code-editor.hide-gutters :deep(.cm-gutters) {
+  display: none;
 }
 
 /* 中文查找/替换面板（跟随 Element Plus 主题变量，深浅色自适应） */

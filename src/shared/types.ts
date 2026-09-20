@@ -161,8 +161,20 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export interface AppSettings {
   recentProjects: string[]
   theme: ThemeMode
-  /** 编辑器字号（px，12-24） */
+  /** 编辑器字号（px，10-24） */
   editorFontSize: number
+  /** 编辑器自动换行 */
+  editorWordWrap: boolean
+  /** 编辑器显示行号 */
+  editorLineNumbers: boolean
+  /** Tab 缩进宽度（2/4/8） */
+  editorTabSize: number
+  /** 文章列表显示 git 状态徽章与批量提交入口 */
+  gitBadge: boolean
+  /** 外部文件修改自动刷新列表（主进程文件监听） */
+  fileWatch: boolean
+  /** 崩溃快照：编辑内容防抖快照与重开恢复 */
+  draftSnapshot: boolean
 }
 
 /** git 文章状态（来自 git status porcelain 的简化映射） */

@@ -213,6 +213,9 @@ onBeforeUnmount(() => {
               language="yaml"
               :dark="settings.isDark"
               :font-size="settings.editorFontSize"
+              :word-wrap="settings.editorWordWrap"
+              :line-numbers="settings.editorLineNumbers"
+              :tab-size="settings.editorTabSize"
             />
           </div>
           <div v-show="!editor.yamlMode" class="meta-grid">
@@ -305,6 +308,9 @@ onBeforeUnmount(() => {
           :image-handler="handleImageFile"
           :dark="settings.isDark"
           :font-size="settings.editorFontSize"
+          :word-wrap="settings.editorWordWrap"
+          :line-numbers="settings.editorLineNumbers"
+          :tab-size="settings.editorTabSize"
           @update:model-value="editor.markDirty()"
         />
       </div>

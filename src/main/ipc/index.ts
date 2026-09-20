@@ -19,6 +19,7 @@ import { pathExists } from '../services/paths'
 import { gitCommit, gitStatus } from '../services/gitService'
 import {
   addRecentProject,
+  clearRecentProjects,
   loadSettings,
   removeRecentProject,
   updateAppPreferences
@@ -147,11 +148,22 @@ export function registerIpcHandlers(): void {
 
   // ---- 设置 / 最近项目 ----
   ipcMain.handle(IpcChannel.settingsGet, () => loadSettings(app.getPath('userData')))
-  ipcMain.handle(IpcChannel.settingsSave, (_e, patch) =>
-    updateAppPreferences(app.getPath('userData'), patch)
-  )
+  ipcMain.handle(IpcChannel.settingsSave, async (_e, patch) => {
+    const settings = await updateAppPreferences(app.getPath('userData'), patch)
+    // 文件监听开关：关闭立即停止 watcher；开启且有当前项目时重新启动
+    if (patch?.fileWatch === false) {
+      stopPostsWatch()
+    } else if (patch?.fileWatch === true) {
+      const root = getCurrentRoot()
+      if (root) void startPostsWatch(root)
+    }
+    return settings
+  })
   ipcMain.handle(IpcChannel.settingsRemoveRecent, (_e, path: string) =>
     removeRecentProject(app.getPath('userData'), path)
+  )
+  ipcMain.handle(IpcChannel.settingsClearRecent, () =>
+    clearRecentProjects(app.getPath('userData'))
   )
 
   // ---- git ----

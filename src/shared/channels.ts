@@ -12,6 +12,7 @@ export const IpcChannel = {
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsRemoveRecent: 'settings:remove-recent',
+  settingsClearRecent: 'settings:clear-recent',
 
   // ---- 项目 ----
   projectSelect: 'project:select',
