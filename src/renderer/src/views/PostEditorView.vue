@@ -15,7 +15,8 @@ const editor = useEditorStore()
 const posts = usePostsStore()
 const settings = useSettingsStore()
 
-const metaOpen = ref<string[]>(['meta'])
+// 元数据面板默认折叠：避免展开状态挤压下方编辑区/预览区
+const metaOpen = ref<string[]>([])
 const previewVisible = ref(true)
 
 const postId = computed(() => decodeURIComponent(String(route.params.id ?? '')))
@@ -28,7 +29,13 @@ const yamlOn = computed({
       editor.enterYamlMode()
       return
     }
-    if (!editor.yamlDirty || editor.exitYamlMode()) return
+    // 无未应用的 YAML 修改：直接退回表单模式
+    if (!editor.yamlDirty) {
+      editor.discardYaml()
+      return
+    }
+    // 有修改：解析成功则应用回表单；失败则确认是否放弃
+    if (editor.exitYamlMode()) return
     void ElMessageBox.confirm('YAML 内容解析失败，放弃这些修改并返回表单模式？', '提示', {
       type: 'warning',
       confirmButtonText: '放弃修改',
@@ -242,7 +249,7 @@ onBeforeUnmount(() => {
               <label>草稿</label>
               <el-switch v-model="editor.draft" @change="editor.markTouched('draft')" />
             </div>
-            <div class="meta-item span-2">
+            <div class="meta-item span-all">
               <label>描述</label>
               <el-input
                 v-model="editor.description"
@@ -252,7 +259,7 @@ onBeforeUnmount(() => {
                 @input="editor.markTouched('description')"
               />
             </div>
-            <div class="meta-item span-2 rename-row">
+            <div class="meta-item span-all rename-row">
               <label>文件名</label>
               <div class="rename-control">
                 <el-input v-model="editor.fileName" placeholder="文件名" />
@@ -260,7 +267,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="meta-item span-2">
+            <div class="meta-item span-all">
               <label>其他字段</label>
               <div class="extras">
                 <div v-for="(f, i) in editor.extras" :key="i" class="extra-row">
@@ -387,6 +394,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 展开时限制内容高度并内部滚动：保证下方编辑区/预览区始终有可用空间 */
+  max-height: 46vh;
+  overflow-y: auto;
 }
 .yaml-alert {
   border-radius: var(--radius-sm);
@@ -401,7 +411,9 @@ onBeforeUnmount(() => {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* 三列：发布日期 | 标签 | 草稿 同行，减少面板展开时的纵向占用 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  align-items: end;
   gap: 12px 16px;
   padding: 4px 14px 14px;
 }
@@ -409,6 +421,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 .meta-item label {
   font-size: var(--fs-sm);
@@ -421,13 +434,19 @@ onBeforeUnmount(() => {
 .meta-item :deep(.el-select) {
   width: 100%;
 }
-.meta-item.span-2 {
-  grid-column: span 2;
+.meta-item.span-all {
+  grid-column: 1 / -1;
 }
 .draft-item {
   flex-direction: row;
   align-items: center;
   gap: 12px;
+  height: 32px;
+}
+@media (max-width: 1100px) {
+  .meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 .rename-control {
   display: flex;
@@ -435,23 +454,31 @@ onBeforeUnmount(() => {
 }
 
 .extras {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
+  display: grid;
+  /* 自适应多列：字段行按可用宽度排布，避免每个字段独占整行 */
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 8px 12px;
+  align-items: start;
+  width: 100%;
 }
 .extra-row {
   display: flex;
   gap: 8px;
   width: 100%;
   align-items: flex-start;
+  min-width: 0;
 }
 .extra-key {
-  width: 180px;
+  width: 120px;
   flex-shrink: 0;
 }
 .extra-value {
   flex: 1;
+  min-width: 0;
+}
+.extras > .el-button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .editor-body {
