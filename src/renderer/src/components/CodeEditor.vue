@@ -20,7 +20,7 @@ const props = defineProps<{
   /** 编辑器字号（px） */
   fontSize?: number
 }>()
-const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'save'): void }>()
+const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 
 const container = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
@@ -58,16 +58,8 @@ onMounted(() => {
         languageExtension(),
         EditorView.lineWrapping,
         EditorState.readOnly.of(props.readOnly ?? false),
-        keymap.of([
-          {
-            key: 'Mod-s',
-            preventDefault: true,
-            run: () => {
-              emit('save')
-              return true
-            }
-          }
-        ]),
+        // 不在组件内绑定 Mod-s：保存是页面级关注点，由宿主的 window keydown 统一处理，
+        // 避免组件 keymap + 冒泡到 window 的双重触发
         keymap.of([...defaultKeymap, indentWithTab]),
         EditorView.domEventHandlers({
           paste: (event, v) => {

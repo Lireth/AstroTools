@@ -276,7 +276,6 @@ onBeforeUnmount(() => {
           :dark="settings.isDark"
           :font-size="settings.editorFontSize"
           @update:model-value="editor.markDirty()"
-          @save="doSave"
         />
       </div>
       <div v-if="previewVisible" class="preview-pane">
