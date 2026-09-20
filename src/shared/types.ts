@@ -62,6 +62,10 @@ export interface PostDetail extends PostMeta {
   frontmatter: Record<string, unknown>
   /** markdown 正文（不含 frontmatter） */
   body: string
+  /** 打开时文件的 mtime（外部修改冲突检测基线） */
+  baseMtimeMs?: number
+  /** 打开时文件的字节大小（外部修改冲突检测基线） */
+  baseSize?: number
 }
 
 /** 新建文章入参 */
@@ -78,6 +82,16 @@ export interface SavePostInput {
   id: string
   frontmatter: Record<string, unknown>
   body: string
+  /** 上次读取/保存时的 mtime；与当前文件不一致时抛出外部修改冲突错误（external-modified: 前缀）。省略则跳过检测 */
+  baseMtimeMs?: number
+  /** 上次读取/保存时的字节大小，与 baseMtimeMs 配套使用 */
+  baseSize?: number
+}
+
+/** 保存文章结果：写盘后的文件 stat，作为下一次保存的冲突检测基线 */
+export interface SavePostResult {
+  mtimeMs: number
+  size: number
 }
 
 /** frontmatter 模板：依据现有文章推断的键序与示例值 */

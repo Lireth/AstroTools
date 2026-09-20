@@ -61,3 +61,11 @@ export const IpcChannel = {
 } as const
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel]
+
+/**
+ * 外部修改冲突错误的 message 前缀（跨进程契约）。
+ * Electron 的 invoke 拒绝值只保留 Error.message 字符串，无法传递自定义属性，
+ * 因此主进程 savePost 检测到文件被外部修改时以该前缀抛错，
+ * 渲染层据此弹出"覆盖外部版本 / 取消"确认。
+ */
+export const EXTERNAL_MODIFIED_PREFIX = 'external-modified:'
