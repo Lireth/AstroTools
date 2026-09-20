@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, sep } from 'node:path'
 import matter from 'gray-matter'
 import { dump as yamlDump, JSON_SCHEMA, load as yamlLoad } from 'js-yaml'
@@ -288,6 +288,23 @@ function stringifyPost(frontmatter: Record<string, unknown>, body: string): stri
   return matter.stringify(normalizedBody, frontmatter, { language: 'yaml', ...MATTER_OPTIONS })
 }
 
+// ---- 原子写：先写同目录临时文件再 rename 覆盖目标，避免写入中途崩溃/断电导致文章文件截断 ----
+let tmpSeq = 0
+async function atomicWriteFile(abs: string, content: string): Promise<void> {
+  const tmp = `${abs}.${process.pid}.${tmpSeq++}.tmp`
+  try {
+    await writeFile(tmp, content, 'utf-8')
+    await rename(tmp, abs)
+  } catch (err) {
+    try {
+      await unlink(tmp)
+    } catch {
+      // 临时文件可能尚未创建成功，忽略
+    }
+    throw err
+  }
+}
+
 /** 新建文章 */
 export async function createPost(
   root: string,
@@ -302,7 +319,7 @@ export async function createPost(
   const abs = resolveWithin(collection.dir, fileName)
   if (await pathExists(abs)) throw new Error(`文件 "${fileName}" 已存在，请换个文件名`)
   await mkdir(dirname(abs), { recursive: true })
-  await writeFile(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  await atomicWriteFile(abs, stringifyPost(input.frontmatter, input.body))
   parseCache.delete(abs)
   templateCache.clear()
 
@@ -316,7 +333,7 @@ export async function savePost(root: string, input: SavePostInput): Promise<void
   const abs = resolveWithin(root, input.id)
   if (!isMarkdownFile(abs)) throw new Error('仅支持 .md / .mdx 文章文件')
   if (!(await pathExists(abs))) throw new Error(`文章不存在: ${input.id}`)
-  await writeFile(abs, stringifyPost(input.frontmatter, input.body), 'utf-8')
+  await atomicWriteFile(abs, stringifyPost(input.frontmatter, input.body))
   parseCache.delete(abs)
   templateCache.clear()
 }
@@ -399,7 +416,7 @@ async function applyBulkPatch(root: string, id: string, patch: BulkUpdatePatch):
   }
 
   if (changed) {
-    await writeFile(abs, stringifyPost(fm, parsed.body), 'utf-8')
+    await atomicWriteFile(abs, stringifyPost(fm, parsed.body))
     parseCache.delete(abs)
     templateCache.clear()
   }
