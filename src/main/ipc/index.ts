@@ -48,8 +48,13 @@ let buildRunner: BuildRunner | null = null
 let postsWatchers: FSWatcher[] = []
 let rescanTimer: NodeJS.Timeout | null = null
 let watchingRoot: string | null = null
+// 代际计数：startPostsWatch 内部有多处 await，快速连续切换项目时，
+// 旧的启动流程可能在新一轮 stopPostsWatch 之后才恢复执行并注册 watcher（竞态泄漏）。
+// 每次 stop/start 都会使代际 +1，进行中的启动流程在恢复后校验代际，过期即中止并关闭已创建的 watcher。
+let watchGeneration = 0
 
 function stopPostsWatch(): void {
+  watchGeneration++
   if (rescanTimer) {
     clearTimeout(rescanTimer)
     rescanTimer = null
@@ -67,6 +72,7 @@ function stopPostsWatch(): void {
 
 async function startPostsWatch(root: string): Promise<void> {
   stopPostsWatch()
+  const generation = watchGeneration
   watchingRoot = root
 
   // 防抖重扫：git pull / 其他编辑器的连续改动合并为一次增量扫描并推送
@@ -88,14 +94,31 @@ async function startPostsWatch(root: string): Promise<void> {
     }, 500)
   }
 
-  const targets = [
-    ...(await discoverCollections(root)).map((c) => c.dir),
-    ...contentConfigCandidates(root)
-  ]
+  // 发现集合目录；失败（如项目正在切换中）则放弃启动，避免成为 unhandled rejection
+  let targets: string[]
+  try {
+    targets = [
+      ...(await discoverCollections(root)).map((c) => c.dir),
+      ...contentConfigCandidates(root)
+    ]
+  } catch {
+    return
+  }
   for (const t of targets) {
+    // await 之后校验代际：已被新的启动/停止取代则立即中止，关闭本次已创建的 watcher
+    if (generation !== watchGeneration) return
     if (!(await pathExists(t))) continue
     try {
-      postsWatchers.push(watch(t, { recursive: true }, schedule))
+      const w = watch(t, { recursive: true }, schedule)
+      if (generation !== watchGeneration) {
+        try {
+          w.close()
+        } catch {
+          // 忽略已关闭的 watcher
+        }
+        return
+      }
+      postsWatchers.push(w)
     } catch {
       // 单个目标监听失败不影响整体
     }
